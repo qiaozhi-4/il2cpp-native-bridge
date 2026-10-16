@@ -1,0 +1,17 @@
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+Testing/
+__pycache__/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+.DS_Store
+!third_party/frida-gum/17.23.3/android-arm64/libfrida-gum.a
+

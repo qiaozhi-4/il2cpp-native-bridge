@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "compatibilityGoal": {
+    "unity": "5.3.0-6000.3.x",
+    "productAbi": "android-arm64-v8a",
+    "unityVersionSelectionRequired": false
+  },
+  "checks": [
+    "runtime_discovery",
+    "class_lookup",
+    "method_lookup",
+    "overload_selection",
+    "field_get_set",
+    "method_invoke",
+    "set_timeScale_find_call_hook_remove_restore"
+  ],
+  "entries": [
+    {
+      "unityVersion": "5.3.0f4",
+      "targets": ["linux-x64"],
+      "evidenceLabel": "host-only",
+      "androidArm64": false,
+      "source": "user-requested-range-lower-bound"
+    },
+    {
+      "unityVersion": "5.3.5f1",
+      "targets": ["linux-x64"],
+      "evidenceLabel": "host-only",
+      "androidArm64": false,
+      "source": "frida-il2cpp-bridge-test-sample"
+    },
+    {
+      "unityVersion": "2017.4.16f1",
+      "targets": ["android-arm64-v8a"],
+      "evidenceLabel": "android-arm64",
+      "androidArm64": true,
+      "source": "unity-android-arm64-support-floor"
+    },
+    {
+      "unityVersion": "2017.4.40f1",
+      "targets": ["linux-x64", "android-arm64-v8a"],
+      "evidenceLabel": "representative",
+      "androidArm64": true,
+      "source": "frida-il2cpp-bridge-test-sample"
+    },
+    {
+      "unityVersion": "2018.3.0f1",
+      "targets": ["linux-x64", "android-arm64-v8a"],
+      "evidenceLabel": "representative",
+      "androidArm64": true,
+      "source": "frida-il2cpp-bridge-test-sample"
+    },
+    {
+      "unityVersion": "2019.3.0f1",
+      "targets": ["linux-x64", "android-arm64-v8a"],
+      "evidenceLabel": "representative",
+      "androidArm64": true,
+      "source": "frida-il2cpp-bridge-test-sample"
+    },
+    {
+      "unityVersion": "2021.2.0f1",
+      "targets": ["linux-x64", "android-arm64-v8a"],
+      "evidenceLabel": "representative",
+      "androidArm64": true,
+      "source": "frida-il2cpp-bridge-test-sample"
+    },
+    {
+      "unityVersion": "2021.3.39f1",
+      "targets": ["android-arm64-v8a"],
+      "evidenceLabel": "gamebox-mrfz",
+      "androidArm64": true,
+      "source": "gamebox-mrfz-runtime"
+    },
+    {
+      "unityVersion": "2023.2.20f1",
+      "targets": ["linux-x64", "android-arm64-v8a"],
+      "evidenceLabel": "representative",
+      "androidArm64": true,
+      "source": "frida-il2cpp-bridge-test-sample"
+    },
+    {
+      "unityVersion": "6000.1.0f1",
+      "targets": ["linux-x64", "android-arm64-v8a"],
+      "evidenceLabel": "representative",
+      "androidArm64": true,
+      "source": "frida-il2cpp-bridge-test-sample"
+    },
+    {
+      "unityVersion": "6000.3.10f1",
+      "targets": ["linux-x64", "android-arm64-v8a"],
+      "evidenceLabel": "range-upper-family",
+      "androidArm64": true,
+      "source": "frida-il2cpp-bridge-test-sample"
+    }
+  ],
+  "resultsStatus": "not-run"
+}

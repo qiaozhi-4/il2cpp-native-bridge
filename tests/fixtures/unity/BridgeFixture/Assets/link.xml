@@ -1,0 +1,5 @@
+<linker>
+  <assembly fullname="Assembly-CSharp">
+    <type fullname="Il2CppNativeBridge.Tests.BridgeFixture" preserve="all" />
+  </assembly>
+</linker>

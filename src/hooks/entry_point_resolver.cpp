@@ -1,0 +1,53 @@
+#include "metadata/metadata_internal.hpp"
+
+#include <cstring>
+#include <fstream>
+#include <sstream>
+
+#include <dlfcn.h>
+
+namespace il2cpp_native_bridge::detail {
+namespace {
+
+bool executable_address(void* address) {
+    if (address == nullptr) return false;
+#if defined(__linux__) || defined(__ANDROID__)
+    std::ifstream maps("/proc/self/maps");
+    std::string line;
+    const auto value = reinterpret_cast<std::uintptr_t>(address);
+    while (std::getline(maps, line)) {
+        std::uintptr_t start = 0;
+        std::uintptr_t end = 0;
+        char permissions[5]{};
+        std::istringstream row(line);
+        row >> std::hex >> start;
+        row.ignore(1, '-');
+        row >> std::hex >> end >> permissions;
+        if (row && value >= start && value < end && permissions[2] == 'x') return true;
+    }
+    return false;
+#else
+    Dl_info info{};
+    return dladdr(address, &info) != 0 && info.dli_fbase != nullptr;
+#endif
+}
+
+} /// namespace
+
+Result<void*> resolve_entry_point(const MethodHandle& method) {
+    auto valid = validate_method_handle(method);
+    if (!valid) return Result<void*>::failure(valid.error());
+    auto attached = acquire_thread(method.declaring_class.context);
+    if (!attached) return Result<void*>::failure(attached.error());
+
+    // IL2CPP has no public method-pointer getter; methodPointer is the first MethodInfo field.
+    void* address = nullptr;
+    std::memcpy(&address, method.native, sizeof(address));
+    if (!executable_address(address)) {
+        return Result<void*>::failure(make_error(ErrorCode::entry_point_unavailable,
+            "MethodInfo.methodPointer is null or not executable"));
+    }
+    return Result<void*>::success(address);
+}
+
+} /// namespace il2cpp_native_bridge::detail

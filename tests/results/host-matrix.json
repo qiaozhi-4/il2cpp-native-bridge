@@ -1,0 +1,368 @@
+{
+  "schemaVersion": 1,
+  "feature": "il2cpp-native-bridge",
+  "generatedAtUtc": "2026-10-13T08:48:14+00:00",
+  "status": "failed",
+  "runs": [
+    {
+      "schemaVersion": 1,
+      "unityVersion": "5.3.0f4",
+      "target": "linux-x64",
+      "abi": "x86_64",
+      "evidenceLabel": "host-only",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "5.3.5f1",
+      "target": "linux-x64",
+      "abi": "x86_64",
+      "evidenceLabel": "host-only",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2017.4.40f1",
+      "target": "linux-x64",
+      "abi": "x86_64",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2018.3.0f1",
+      "target": "linux-x64",
+      "abi": "x86_64",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2019.3.0f1",
+      "target": "linux-x64",
+      "abi": "x86_64",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2021.2.0f1",
+      "target": "linux-x64",
+      "abi": "x86_64",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2023.2.20f1",
+      "target": "linux-x64",
+      "abi": "x86_64",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "6000.1.0f1",
+      "target": "linux-x64",
+      "abi": "x86_64",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "host fixture requires Linux x86_64; current host is Darwin arm64; Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "6000.3.10f1",
+      "target": "linux-x64",
+      "abi": "x86_64",
+      "evidenceLabel": "range-upper-family",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "failed",
+      "checks": {
+        "runtime_discovery": {
+          "status": "failed",
+          "details": "Docker linux/amd64 fixture build could not execute Unity Mono on the local ARM64 daemon: Mono aborted in x86-codegen.h:410 while compiling GameAssembly.dll and reported System.OutOfMemoryException. Editor download and extraction succeeded; bridge runtime checks did not start."
+        },
+        "class_lookup": {
+          "status": "failed",
+          "details": "Docker linux/amd64 fixture build could not execute Unity Mono on the local ARM64 daemon: Mono aborted in x86-codegen.h:410 while compiling GameAssembly.dll and reported System.OutOfMemoryException. Editor download and extraction succeeded; bridge runtime checks did not start."
+        },
+        "method_lookup": {
+          "status": "failed",
+          "details": "Docker linux/amd64 fixture build could not execute Unity Mono on the local ARM64 daemon: Mono aborted in x86-codegen.h:410 while compiling GameAssembly.dll and reported System.OutOfMemoryException. Editor download and extraction succeeded; bridge runtime checks did not start."
+        },
+        "overload_selection": {
+          "status": "failed",
+          "details": "Docker linux/amd64 fixture build could not execute Unity Mono on the local ARM64 daemon: Mono aborted in x86-codegen.h:410 while compiling GameAssembly.dll and reported System.OutOfMemoryException. Editor download and extraction succeeded; bridge runtime checks did not start."
+        },
+        "field_get_set": {
+          "status": "failed",
+          "details": "Docker linux/amd64 fixture build could not execute Unity Mono on the local ARM64 daemon: Mono aborted in x86-codegen.h:410 while compiling GameAssembly.dll and reported System.OutOfMemoryException. Editor download and extraction succeeded; bridge runtime checks did not start."
+        },
+        "method_invoke": {
+          "status": "failed",
+          "details": "Docker linux/amd64 fixture build could not execute Unity Mono on the local ARM64 daemon: Mono aborted in x86-codegen.h:410 while compiling GameAssembly.dll and reported System.OutOfMemoryException. Editor download and extraction succeeded; bridge runtime checks did not start."
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "failed",
+          "details": "Docker linux/amd64 fixture build could not execute Unity Mono on the local ARM64 daemon: Mono aborted in x86-codegen.h:410 while compiling GameAssembly.dll and reported System.OutOfMemoryException. Editor download and extraction succeeded; bridge runtime checks did not start."
+        }
+      },
+      "details": "Docker linux/amd64 fixture build could not execute Unity Mono on the local ARM64 daemon: Mono aborted in x86-codegen.h:410 while compiling GameAssembly.dll and reported System.OutOfMemoryException. Editor download and extraction succeeded; bridge runtime checks did not start."
+    }
+  ]
+}

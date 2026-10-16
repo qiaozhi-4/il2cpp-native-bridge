@@ -1,0 +1,368 @@
+{
+  "schemaVersion": 1,
+  "feature": "il2cpp-native-bridge",
+  "generatedAtUtc": "2026-10-13T12:18:09+00:00",
+  "status": "failed",
+  "runs": [
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2017.4.16f1",
+      "target": "android-arm64-v8a",
+      "abi": "arm64-v8a",
+      "evidenceLabel": "android-arm64",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "failed",
+      "checks": {
+        "runtime_discovery": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "class_lookup": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "method_lookup": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "overload_selection": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "field_get_set": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "method_invoke": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        }
+      },
+      "details": "Unity Android player build failed: "
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2017.4.40f1",
+      "target": "android-arm64-v8a",
+      "abi": "arm64-v8a",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2018.3.0f1",
+      "target": "android-arm64-v8a",
+      "abi": "arm64-v8a",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2019.3.0f1",
+      "target": "android-arm64-v8a",
+      "abi": "arm64-v8a",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2021.2.0f1",
+      "target": "android-arm64-v8a",
+      "abi": "arm64-v8a",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2021.3.39f1",
+      "target": "android-arm64-v8a",
+      "abi": "arm64-v8a",
+      "evidenceLabel": "gamebox-mrfz",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "Unity Editor license is inactive; activate it in Unity Hub before testing"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor license is inactive; activate it in Unity Hub before testing"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor license is inactive; activate it in Unity Hub before testing"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "Unity Editor license is inactive; activate it in Unity Hub before testing"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "Unity Editor license is inactive; activate it in Unity Hub before testing"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "Unity Editor license is inactive; activate it in Unity Hub before testing"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "Unity Editor license is inactive; activate it in Unity Hub before testing"
+        }
+      },
+      "details": "Unity Editor license is inactive; activate it in Unity Hub before testing"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "2023.2.20f1",
+      "target": "android-arm64-v8a",
+      "abi": "arm64-v8a",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "6000.1.0f1",
+      "target": "android-arm64-v8a",
+      "abi": "arm64-v8a",
+      "evidenceLabel": "representative",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "blocked",
+      "checks": {
+        "runtime_discovery": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "class_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_lookup": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "overload_selection": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "field_get_set": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "method_invoke": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "blocked",
+          "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+        }
+      },
+      "details": "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"
+    },
+    {
+      "schemaVersion": 1,
+      "unityVersion": "6000.3.10f1",
+      "target": "android-arm64-v8a",
+      "abi": "arm64-v8a",
+      "evidenceLabel": "range-upper-family",
+      "strippingSettings": "fixture link.xml and direct managed references; disable managed stripping where supported",
+      "status": "failed",
+      "checks": {
+        "runtime_discovery": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "class_lookup": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "method_lookup": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "overload_selection": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "field_get_set": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "method_invoke": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        },
+        "set_timeScale_find_call_hook_remove_restore": {
+          "status": "failed",
+          "details": "Unity Android player build failed"
+        }
+      },
+      "details": "Unity Android player build failed: nceAssemblies/unity-4.8-api/Facades/System.Runtime.Numerics.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Runtime.Serialization.Formatters.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Runtime.Serialization.Json.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Runtime.Serialization.Primitives.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Runtime.Serialization.Xml.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Security.Claims.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Security.Cryptography.Algorithms.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Security.Cryptography.Csp.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Security.Cryptography.Encoding.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Security.Cryptography.Primitives.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Security.Cryptography.X509Certificates.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Security.Principal.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Security.SecureString.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.ServiceModel.Duplex.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.ServiceModel.Http.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.ServiceModel.NetTcp.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.ServiceModel.Primitives.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.ServiceModel.Security.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Text.Encoding.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Text.Encoding.Extensions.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Text.RegularExpressions.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Threading.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Threading.Overlapped.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Threading.Tasks.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Threading.Tasks.Extensions.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Threading.Tasks.Parallel.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Threading.Thread.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Threading.ThreadPool.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Threading.Timer.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.ValueTuple.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Xml.ReaderWriter.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Xml.XDocument.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Xml.XmlDocument.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Xml.XmlSerializer.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Xml.XPath.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Xml.XPath.XDocument.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Microsoft.CSharp.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/mscorlib.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.ComponentModel.Composition.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Core.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Data.DataSetExtensions.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Data.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Drawing.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.IO.Compression.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.IO.Compression.FileSystem.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Net.Http.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Numerics.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Numerics.Vectors.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Runtime.Serialization.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Transactions.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Xml.dll\"\n-r:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.Xml.Linq.dll\"\n-r:\"Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp.ref.dll\"\n-r:\"Library/Bee/artifacts/200b0aE.dag/Unity.Multiplayer.Center.Common.ref.dll\"\n-r:\"Library/Bee/artifacts/200b0aE.dag/Unity.Multiplayer.Center.Editor.ref.dll\"\n-analyzer:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/BuildPipeline/Unity.SourceGenerators/Unity.Properties.SourceGenerator.dll\"\n-analyzer:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/BuildPipeline/Unity.SourceGenerators/Unity.SourceGenerators.dll\"\n-analyzer:\"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/BuildPipeline/Unity.SourceGenerators/Unity.UIToolkit.SourceGenerator.dll\"\n\"Assets/Editor/BridgeFixtureBuilder.cs\"\n-langversion:9.0\n/deterministic\n/optimize+\n/debug:portable\n/nologo\n/RuntimeMetadataVersion:v4.0.30319\n/nowarn:0169\n/nowarn:0649\n/nowarn:0282\n/nowarn:1701\n/nowarn:1702\n/utf8output\n/preferreduilang:en-US\n/additionalfile:\"Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.UnityAdditionalFile.txt\"\n##### Custom Environment Variables\nDOTNET_MULTILEVEL_LOOKUP=0\n##### ExitCode\n1\n##### Output\nAssets/Editor/BridgeFixtureBuilder.cs(32,9): error CS0619: 'PlayerSettings.bundleIdentifier' is obsolete: 'Use PlayerSettings.applicationIdentifier instead (UnityUpgradable) -> UnityEditor.PlayerSettings.applicationIdentifier'\nAssets/Editor/BridgeFixtureBuilder.cs(35,24): error CS0029: Cannot implicitly convert type 'UnityEditor.Build.Reporting.BuildReport' to 'string'\n*** Tundra build failed (5.49 seconds), 175 items updated, 178 evaluated\n[ApiUpdater] Total time: 1681ms, Parse response file: 68ms, Collect updater configs: 1114ms, Update: 498ms, Save: 1ms File: 1 modified / 1 visited / 1 total (Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.dll).\n[API Updater] Updated Files:\nSkipping ScriptUpdater consent dialog. Consent declined based on command line parameters.\nFinished running ScriptUpdaters\n## Script Compilation Error for: Csc Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.dll (+2 others)\n## CmdLine: \"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/NetCoreRuntime/dotnet\" exec \"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/Resources/Scripting/DotNetSdkRoslyn/csc.dll\" /nostdlib /noconfig /shared \"@Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.rsp\" \"@Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.rsp2\"\n## Output:\nAssets/Editor/BridgeFixtureBuilder.cs(32,9): error CS0619: 'PlayerSettings.bundleIdentifier' is obsolete: 'Use PlayerSettings.applicationIdentifier instead (UnityUpgradable) -> UnityEditor.PlayerSettings.applicationIdentifier'\nAssets/Editor/BridgeFixtureBuilder.cs(35,24): error CS0029: Cannot implicitly convert type 'UnityEditor.Build.Reporting.BuildReport' to 'string'\n\nTotal cache size 234372\nAssets/Editor/BridgeFixtureBuilder.cs(32,9): error CS0619: 'PlayerSettings.bundleIdentifier' is obsolete: 'Use PlayerSettings.applicationIdentifier instead (UnityUpgradable) -> UnityEditor.PlayerSettings.applicationIdentifier'\nAssets/Editor/BridgeFixtureBuilder.cs(35,24): error CS0029: Cannot implicitly convert type 'UnityEditor.Build.Reporting.BuildReport' to 'string'\nTotal cache size after purge 234372, took 00:00:00.0076625\nAssetDatabase: script compilation time: 8.446378s\nScripts have compiler errors.\n\nAborting batchmode due to failure:\nScripts have compiler errors.\n\n[Package Manager] Server process was shutdown\n\u001b[40m\u001b[32minfo\u001b[39m\u001b[22m\u001b[49m: Microsoft.Hosting.Lifetime[0]\n      Application is shutting down...\n"
+    }
+  ]
+}
