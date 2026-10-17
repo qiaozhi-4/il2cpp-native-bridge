@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.19)
 
 project(il2cpp_native_bridge LANGUAGES CXX)
 
+find_package(Threads REQUIRED)
+
 option(IL2CPP_NATIVE_BRIDGE_BUILD_TESTS "Build host-side unit tests" ON)
 if (ANDROID)
     set(IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_DEFAULT ON)
@@ -19,6 +21,7 @@ endif ()
 add_library(il2cpp_native_bridge STATIC
         src/platform/android/runtime_module.cpp
         src/runtime/export_resolver.cpp
+        src/runtime/perform.cpp
         src/runtime/runtime_context.cpp
         src/runtime/thread_attachment.cpp
         src/runtime/thread_attachment_public.cpp
@@ -41,7 +44,7 @@ target_include_directories(il2cpp_native_bridge
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 set_target_properties(il2cpp_native_bridge PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(il2cpp_native_bridge PRIVATE ${CMAKE_DL_LIBS})
+target_link_libraries(il2cpp_native_bridge PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
 
 if (IL2CPP_NATIVE_BRIDGE_BUILD_FRIDA_GUM_BACKEND)
     include(cmake/FridaGum.cmake)

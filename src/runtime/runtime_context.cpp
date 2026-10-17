@@ -32,6 +32,12 @@ Result<void> refresh_context(const std::shared_ptr<RuntimeContext>& context) {
     }
 
     if (context->module != nullptr && !context->injected_api) {
+        if (context->symbol_lookup_ready != nullptr && !context->symbol_lookup_ready(context->module)) {
+            context->snapshot.state = RuntimeState::waiting_for_module;
+            context->snapshot.last_error = "configured IL2CPP symbol resolver is not ready";
+            context->snapshot.missing_apis.clear();
+            return Result<void>::failure(make_error(ErrorCode::runtime_not_ready, context->snapshot.last_error));
+        }
         const auto lookup = context->symbol_lookup == nullptr ? lookup_runtime_symbol : context->symbol_lookup;
         const auto exports = resolve_exports(context->module, lookup, context->export_overrides);
         context->api = exports.api;

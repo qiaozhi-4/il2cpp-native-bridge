@@ -65,7 +65,9 @@ Runtime Runtime::current() {
     return Runtime(context);
 }
 
-Result<void> Runtime::set_symbol_lookup(void* module, RuntimeSymbolLookup lookup) {
+Result<void> Runtime::set_symbol_lookup(void* module,
+                                       RuntimeSymbolLookup lookup,
+                                       RuntimeSymbolLookupReady is_ready) {
     if (module == nullptr || lookup == nullptr) {
         return Result<void>::failure(make_error(ErrorCode::invalid_argument,
             "module and IL2CPP symbol lookup are required"));
@@ -85,6 +87,7 @@ Result<void> Runtime::set_symbol_lookup(void* module, RuntimeSymbolLookup lookup
         context->module = module;
         context->owns_module = false;
         context->symbol_lookup = lookup;
+        context->symbol_lookup_ready = is_ready;
         context->api = {};
         context->domain = nullptr;
         context->snapshot.state = RuntimeState::initializing;

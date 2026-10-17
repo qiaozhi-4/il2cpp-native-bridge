@@ -73,6 +73,7 @@ struct ResolvedExports {
 };
 
 using SymbolLookup = void* (*)(void* module, const char* symbol_name);
+using SymbolLookupReady = bool (*)(void* module);
 
 ResolvedExports resolve_exports(void* module,
                                 SymbolLookup lookup,

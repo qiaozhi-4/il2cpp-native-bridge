@@ -20,6 +20,7 @@ struct RuntimeContext {
     bool owns_module{};
     Il2CppDomain* domain{};
     SymbolLookup symbol_lookup{};
+    SymbolLookupReady symbol_lookup_ready{};
     RuntimeSnapshot snapshot;
     bool injected_api{};
     std::unordered_map<std::string, void*> metadata_cache;

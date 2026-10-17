@@ -7,6 +7,7 @@
 #include "thread_attachment.hpp"
 
 #include <array>
+#include <chrono>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -27,6 +28,7 @@ struct FieldHandle;
 struct MethodMetadata;
 
 using RuntimeSymbolLookup = detail::SymbolLookup;
+using RuntimeSymbolLookupReady = detail::SymbolLookupReady;
 
 namespace detail {
 struct RuntimeContext;
@@ -106,6 +108,12 @@ struct MethodMetadata {
 class Runtime;
 class ClassQuery;
 
+struct RuntimeWaitOptions {
+    std::chrono::milliseconds poll_interval{100};
+    std::chrono::milliseconds timeout{10000};
+    std::function<void(const RuntimeSnapshot&, std::chrono::milliseconds)> on_timeout;
+};
+
 template <typename T>
 struct ManagedTypeName;
 
@@ -130,12 +138,27 @@ inline constexpr std::string_view managed_type_name = ManagedTypeName<std::remov
 class Runtime {
 public:
     static Runtime current();
-    static Result<void> set_symbol_lookup(void* module, RuntimeSymbolLookup lookup);
+    static Result<void> set_symbol_lookup(void* module,
+                                          RuntimeSymbolLookup lookup,
+                                          RuntimeSymbolLookupReady is_ready = nullptr);
     static Result<void> set_export_override(std::string_view symbol_name, void* address);
     static Runtime for_testing(detail::Api api, Il2CppDomain* domain);
 
     [[nodiscard]] RuntimeSnapshot snapshot() const;
     Result<void> refresh() const;
+
+    /**
+     * 在后台线程等待 IL2CPP runtime 就绪，再附加该线程并执行 action。
+     *
+     * waiting_for_module/initializing 状态会持续轮询；超过 options.timeout 时最多调用一次
+     * options.on_timeout，然后继续等待。unsupported runtime、线程附加错误或 action 错误
+     * 会传给 completion，不会重试 action。action、超时和完成回调都在后台线程执行，其捕获对象
+     * 必须在任务结束前保持有效。启动成功后 completion 恰好调用一次；启动失败时直接返回错误，
+     * 不调用 completion。该方法返回只表示后台任务已成功启动。
+     */
+    Result<void> perform_when_ready(const std::function<Result<void>()>& action,
+                                    std::function<void(Result<void>)> completion,
+                                    RuntimeWaitOptions options = {}) const;
 
     /**
      * 在当前线程附加到 IL2CPP 的作用域内同步执行回调。
