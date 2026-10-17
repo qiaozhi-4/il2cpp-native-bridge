@@ -3,6 +3,7 @@
 #include <frida-gum.h>
 
 #include <mutex>
+#include <utility>
 
 namespace il2cpp_native_bridge {
 namespace {
@@ -77,6 +78,23 @@ Result<void> with_frida_gum_hook_backend(
             "Frida Gum interceptor is unavailable"));
     }
     return action(backend);
+}
+
+Result<void> perform_when_ready_with_frida_gum_hook_backend(
+    const Runtime& runtime,
+    std::function<Result<void>(const std::shared_ptr<HookBackend>&)> action,
+    std::function<void(Result<void>)> completion,
+    RuntimeWaitOptions options) {
+    if (!action) {
+        return Result<void>::failure(make_error(ErrorCode::invalid_argument,
+            "Frida Gum Hook backend action is empty"));
+    }
+
+    return runtime.perform_when_ready(
+        [action = std::move(action)] {
+            return with_frida_gum_hook_backend(action);
+        },
+        std::move(completion), std::move(options));
 }
 
 } /// namespace il2cpp_native_bridge

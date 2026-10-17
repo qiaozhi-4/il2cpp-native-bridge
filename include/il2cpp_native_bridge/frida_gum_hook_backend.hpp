@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hook_backend.hpp"
+#include "bridge.hpp"
 
 #include <functional>
 #include <memory>
@@ -26,5 +26,20 @@ std::shared_ptr<HookBackend> make_frida_gum_hook_backend();
  */
 Result<void> with_frida_gum_hook_backend(
     const std::function<Result<void>(const std::shared_ptr<HookBackend>&)>& action);
+
+/**
+ * 等待 IL2CPP runtime 就绪、附加当前工作线程并创建 Frida Gum backend 后执行 action。
+ *
+ * 等待策略和超时回调沿用 Runtime::perform_when_ready；runtime 就绪后 action 最多执行一次。
+ * backend 不可用或 action 返回错误时，错误交给 completion，不会重试 action。
+ * action、completion 和超时回调在后台线程执行，其捕获对象必须在任务结束前保持有效。
+ *
+ * @return 后台任务启动结果；启动成功只表示任务已排队，最终结果由 completion 接收。
+ */
+Result<void> perform_when_ready_with_frida_gum_hook_backend(
+    const Runtime& runtime,
+    std::function<Result<void>(const std::shared_ptr<HookBackend>&)> action,
+    std::function<void(Result<void>)> completion,
+    RuntimeWaitOptions options = {});
 
 } /// namespace il2cpp_native_bridge

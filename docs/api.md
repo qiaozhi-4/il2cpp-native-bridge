@@ -32,6 +32,8 @@ if (!hook_result) return;
 
 若 Hook 初始化需要等待 Unity 加载，可调用 `Runtime::perform_when_ready(action, completion, options)`。bridge 会在后台线程轮询模块、`il2cpp_get_corlib` 和程序集状态；等待超过 `options.timeout` 时最多调用一次 `options.on_timeout`，随后继续等待，直到 runtime 就绪或发现不支持的运行时。就绪后 bridge 自动附加线程并且只执行一次 action。action、线程附加或 backend 安装返回错误时，结果交给 completion，不会重新执行 action。启动成功后 completion 恰好调用一次；启动失败时直接返回错误，不调用 completion。
 
+使用 Frida Gum 安装 Hook 时，可改用 `perform_when_ready_with_frida_gum_hook_backend(runtime, action, completion, options)`。该接口组合上述等待与线程附加流程，并在就绪后创建和检查 Gum backend；backend 不可用或 action 失败时只将错误交给 completion，不会重试安装。
+
 GameBox 等使用自定义 ELF 扫描器的宿主，可以通过 `Runtime::set_symbol_lookup(module, lookup, is_ready)` 注册解析器和就绪检查。bridge 会在 `is_ready(module)` 返回 true 前保持 `waiting_for_module`，避免把扫描器尚未发现 `libil2cpp.so` 误判为不支持的 Unity 版本。
 
 需要构造托管闭合泛型类时，`Runtime::generic_class(...)` 接受开放泛型类名、类型实参和可选程序集名。它通过 IL2CPP reflection 将开放类与类型实参转换成闭合类句柄，随后可沿用普通类查询 API：
