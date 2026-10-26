@@ -115,6 +115,8 @@ function(il2cpp_native_bridge_add_frida_gum_backend)
     )
     add_library(il2cpp_native_bridge::frida_gum ALIAS il2cpp_native_bridge_frida_gum)
     target_compile_features(il2cpp_native_bridge_frida_gum PUBLIC cxx_std_20)
+    il2cpp_native_bridge_apply_cxx_standard(il2cpp_native_bridge_frida_gum)
+    il2cpp_native_bridge_enable_warnings(il2cpp_native_bridge_frida_gum)
     target_include_directories(il2cpp_native_bridge_frida_gum
             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
             PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"

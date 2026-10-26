@@ -14,8 +14,6 @@ using namespace il2cpp_native_bridge;
 
 namespace {
 
-void replacement(float) {}
-
 class StubBackend final : public HookBackend {
 public:
     Result<void*> install(void*, void*) override {
