@@ -8,6 +8,7 @@ add_executable(il2cpp_native_bridge_tests
         unit/field_access_test.cpp
         unit/invocation_test.cpp
         unit/hook_lifecycle_test.cpp
+        unit/hook_slot_test.cpp
 )
 add_library(il2cpp_native_bridge_frida_gum_test_stub STATIC
         frida_gum_stub/fake_frida_gum.cpp

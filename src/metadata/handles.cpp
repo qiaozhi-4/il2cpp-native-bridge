@@ -98,6 +98,11 @@ Result<void> Runtime::set_symbol_lookup(void* module,
     void* previous_owned_module = nullptr;
     {
         std::lock_guard lock(context->mutex);
+        /// 相同参数重复配置是幂等的：调用方常在多处配置，无法得知此前是否已生效。
+        if (context->module == module && context->symbol_lookup == lookup &&
+            context->symbol_lookup_ready == is_ready) {
+            return Result<void>::success();
+        }
         if (context->snapshot.state == RuntimeState::ready || context->snapshot.generation != 0) {
             return Result<void>::failure(make_error(ErrorCode::invalid_argument,
                 "IL2CPP symbol lookup must be configured before the runtime becomes ready"));

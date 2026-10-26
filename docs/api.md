@@ -6,6 +6,7 @@
 #include <optional>
 #include "il2cpp_native_bridge/bridge.hpp"
 #include "il2cpp_native_bridge/frida_gum_hook_backend.hpp"
+#include "il2cpp_native_bridge/hook_slot.hpp"
 
 using namespace il2cpp_native_bridge;
 
@@ -34,7 +35,7 @@ if (!hook_result) return;
 
 使用 Frida Gum 安装 Hook 时，可改用 `perform_when_ready_with_frida_gum_hook_backend(runtime, action, completion, options)`。该接口组合上述等待与线程附加流程，并在就绪后创建和检查 Gum backend；backend 不可用或 action 失败时只将错误交给 completion，不会重试安装。
 
-GameBox 等使用自定义 ELF 扫描器的宿主，可以通过 `Runtime::set_symbol_lookup(module, lookup, is_ready)` 注册解析器和就绪检查。bridge 会在 `is_ready(module)` 返回 true 前保持 `waiting_for_module`，避免把扫描器尚未发现 `libil2cpp.so` 误判为不支持的 Unity 版本。
+GameBox 等使用自定义 ELF 扫描器的宿主，可以通过 `Runtime::set_symbol_lookup(module, lookup, is_ready)` 注册解析器和就绪检查。bridge 会在 `is_ready(module)` 返回 true 前保持 `waiting_for_module`，避免把扫描器尚未发现 `libil2cpp.so` 误判为不支持的 Unity 版本。运行时进入 `ready` 后不再接受参数变更；但以**完全相同**的三个参数重复调用是幂等的，直接返回成功，调用方无需自行记录是否已配置。
 
 需要构造托管闭合泛型类时，`Runtime::generic_class(...)` 接受开放泛型类名、类型实参和可选程序集名。它通过 IL2CPP reflection 将开放类与类型实参转换成闭合类句柄，随后可沿用普通类查询 API：
 
@@ -69,6 +70,22 @@ if (classes) {
 如果托管参数类型暂时未知，可用 `method<Return, Args...>(name, parameter_count)` 按名称和参数数目查找；同名同参数数目的方法仍会返回歧义错误。实例方法可用 `hook_instance(...)` 安装 Hook，替换函数的第一个参数是 `Il2CppObject* this`。`Runtime::klass_of(instance)` 可取得对象的实际类；`fields()` 返回该类的字段元数据，`object_field(name)` 用于读取对象引用字段，`boxed_field(name)` 配合 `set_boxed(...)` 将已构造的装箱值写入值类型字段。`new_object()` 按类分配托管对象，可再通过构造函数初始化。
 
 带类型的 Hook 替换函数会接收托管方法对应的原生参数。需要转发到原方法时，在替换函数中调用 `HookHandle::original()`。Hook 生效期间必须保留其句柄；`remove()` 可显式调用且可重复调用，句柄析构时也会移除仍生效的 Hook。析构时无法向调用方报告移除错误；需要处理错误时应显式调用 `remove()`。
+
+需要长期持有 Hook 时可用 `HookSlot<Return, Args...>`：它串行化 `install()` 与 `remove()`，并在安装返回前发布原函数入口，避免替换函数读到尚未就绪的跳板。`install(installer)` 幂等，`original()` 是单次原子读取，`remove()` 可重复调用。
+
+**替换函数必须自行判空。** Gum 可能在 `install()` 返回前就启用替换函数，移除成功后入口也会被清空；这两种情况下 `original()` 都返回 `nullptr`，此时应直接返回，不要通过空指针转发。
+
+```cpp
+#include "il2cpp_native_bridge/hook_slot.hpp"
+
+il2cpp_native_bridge::HookSlot<void, float> time_scale_slot;
+
+void set_time_scale(float value) {
+    if (auto original = time_scale_slot.original()) original(value);
+}
+
+(void) time_scale_slot.install([&] { return setter.hook(backend, set_time_scale); });
+```
 
 `make_frida_gum_hook_backend()` 会初始化已链接的 Frida Gum C 运行时（只初始化一次），并返回使用 Gum `Interceptor.replace` 和 `Interceptor.revert` 的 `HookBackend`；若无法取得 Gum interceptor 则返回空指针。`with_frida_gum_hook_backend(action)` 会统一创建并检查 backend，只在 backend 可用时调用 action，backend 不可用时返回 `hook_backend_unavailable`。这是原生 C 库依赖，不使用 Gadget、frida-core、GumJS 或 JavaScript 运行时。如果使用方只需要查询、字段访问和方法调用，可以不构建 Gum 构建目标；调用 Hook 时必须链接 `il2cpp_native_bridge_frida_gum`。
 

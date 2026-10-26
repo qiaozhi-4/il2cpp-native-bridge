@@ -8,6 +8,7 @@ void run_class_cache_tests();
 void run_field_access_tests();
 void run_invocation_tests();
 void run_hook_lifecycle_tests();
+void run_hook_slot_tests();
 
 int main() {
     try {
@@ -18,6 +19,7 @@ int main() {
         run_field_access_tests();
         run_invocation_tests();
         run_hook_lifecycle_tests();
+        run_hook_slot_tests();
         std::cout << "il2cpp-native-bridge tests passed\n";
         return 0;
     } catch (const std::exception& error) {
