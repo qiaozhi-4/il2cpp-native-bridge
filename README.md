@@ -4,9 +4,9 @@
 
 首个支持的平台是 Android `arm64-v8a`。主机端构建用于运行单元测试和部分 Unity 生成的兼容性样例。目标兼容范围为 Unity 5.3.0–6000.3.x；只有测试矩阵中记录的版本具备直接验证结果。
 
-Android `arm64-v8a` 构建链接固定版本的 Frida Gum 17.23.3 官方预编译静态开发工具包（`libfrida-gum.a`），文件和公开头文件位于 [`third_party/frida-gum/17.23.3/android-arm64`](third_party/frida-gum/17.23.3/android-arm64)。CMake 使用仓库内的副本，不会在配置阶段下载或构建 Gum。只有在明确改用其他工具包时，才设置 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT`。
+Android `arm64-v8a` 构建链接固定版本的 Frida Gum 17.23.3 官方预编译开发工具包。仓库只提交官方压缩包 [`frida-gum-devkit-17.23.3-android-arm64.tar.xz`](third_party/frida-gum/17.23.3/android-arm64)，CMake 在配置阶段把它解压到构建目录的 `third_party/frida-gum/17.23.3/android-arm64/` 再链接，因此 git 历史里不含 77 MB 的解压产物。配置阶段不联网，也不从源码构建 Gum。只有在明确改用其他工具包时，才设置 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT`（指向已解压的 devkit，此时跳过摘要校验）。
 
-CMake 在配置阶段校验该归档的 SHA-256（`IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256`），摘要不符时直接报错，避免把损坏或替换过的归档带进链接阶段。主机端单元测试使用 Gum API 替身，不链接 Android 工具包。
+CMake 会校验压缩包的 SHA-256（`IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ARCHIVE_SHA256`）与解压后 `libfrida-gum.a` 的 SHA-256（`IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_LIBRARY_SHA256`），任一不符即报错，避免把损坏的归档带进链接阶段。主机端单元测试使用 Gum API 替身，不链接 Android 工具包。
 
 本库不包含 Frida Gadget、frida-core、GumJS 或 JavaScript 引擎，也不依赖 GameBox 或 BNM。GameBox 现有的 BNM 组件仍可继续使用 Dobby。
 
