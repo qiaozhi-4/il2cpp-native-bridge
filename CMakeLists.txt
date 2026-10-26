@@ -1,20 +1,25 @@
 cmake_minimum_required(VERSION 3.19)
 
-project(il2cpp_native_bridge LANGUAGES CXX)
+project(il2cpp_native_bridge VERSION 0.1.0 LANGUAGES CXX)
 
 include(cmake/CompilerWarnings.cmake)
+include(GNUInstallDirs)
 
 find_package(Threads REQUIRED)
 
-# 作为子目录被消费时默认不构建测试，避免把库内测试注册到宿主工程的 CTest。
+# 作为子目录被消费时默认不构建测试、不注册安装规则，避免影响宿主工程。
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    set(IL2CPP_NATIVE_BRIDGE_TESTS_DEFAULT ON)
+    set(IL2CPP_NATIVE_BRIDGE_TOP_LEVEL ON)
 else ()
-    set(IL2CPP_NATIVE_BRIDGE_TESTS_DEFAULT OFF)
+    set(IL2CPP_NATIVE_BRIDGE_TOP_LEVEL OFF)
 endif ()
+
 option(IL2CPP_NATIVE_BRIDGE_BUILD_TESTS
         "Build host-side unit tests"
-        ${IL2CPP_NATIVE_BRIDGE_TESTS_DEFAULT})
+        ${IL2CPP_NATIVE_BRIDGE_TOP_LEVEL})
+option(IL2CPP_NATIVE_BRIDGE_INSTALL
+        "Generate install rules and package config files"
+        ${IL2CPP_NATIVE_BRIDGE_TOP_LEVEL})
 option(IL2CPP_NATIVE_BRIDGE_WERROR "Treat library warnings as errors" OFF)
 option(IL2CPP_NATIVE_BRIDGE_SANITIZE
         "Sanitizer list for the library and its tests, for example address,undefined"
@@ -65,7 +70,7 @@ il2cpp_native_bridge_enable_warnings(il2cpp_native_bridge)
 target_include_directories(il2cpp_native_bridge
         PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
@@ -75,6 +80,38 @@ target_link_libraries(il2cpp_native_bridge PRIVATE ${CMAKE_DL_LIBS} Threads::Thr
 if (IL2CPP_NATIVE_BRIDGE_BUILD_FRIDA_GUM_BACKEND)
     include(cmake/FridaGum.cmake)
     il2cpp_native_bridge_add_frida_gum_backend()
+endif ()
+
+if (IL2CPP_NATIVE_BRIDGE_INSTALL)
+    install(TARGETS il2cpp_native_bridge
+            EXPORT il2cpp_native_bridgeTargets
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+    install(EXPORT il2cpp_native_bridgeTargets
+            NAMESPACE il2cpp_native_bridge::
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/il2cpp_native_bridge)
+
+    if (TARGET il2cpp_native_bridge_frida_gum)
+        set(IL2CPP_NATIVE_BRIDGE_INSTALL_FRIDA_GUM ON)
+    else ()
+        set(IL2CPP_NATIVE_BRIDGE_INSTALL_FRIDA_GUM OFF)
+    endif ()
+
+    include(CMakePackageConfigHelpers)
+    configure_package_config_file(
+            cmake/il2cpp_native_bridgeConfig.cmake.in
+            "${CMAKE_CURRENT_BINARY_DIR}/il2cpp_native_bridgeConfig.cmake"
+            INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/il2cpp_native_bridge)
+    write_basic_package_version_file(
+            "${CMAKE_CURRENT_BINARY_DIR}/il2cpp_native_bridgeConfigVersion.cmake"
+            VERSION ${PROJECT_VERSION}
+            COMPATIBILITY SameMinorVersion)
+    install(FILES
+            "${CMAKE_CURRENT_BINARY_DIR}/il2cpp_native_bridgeConfig.cmake"
+            "${CMAKE_CURRENT_BINARY_DIR}/il2cpp_native_bridgeConfigVersion.cmake"
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/il2cpp_native_bridge)
 endif ()
 
 if (IL2CPP_NATIVE_BRIDGE_BUILD_TESTS AND NOT ANDROID)

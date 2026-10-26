@@ -1,0 +1,24 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Threads)
+
+# il2cpp_native_bridge_frida_gum_upstream 是 IMPORTED 目标，install(EXPORT) 无法导出它，
+# 因此在这里按安装树中的实际路径重建，供导出的 ::frida_gum 目标引用。
+if (@IL2CPP_NATIVE_BRIDGE_INSTALL_FRIDA_GUM@)
+    if (NOT TARGET il2cpp_native_bridge_frida_gum_upstream)
+        add_library(il2cpp_native_bridge_frida_gum_upstream STATIC IMPORTED)
+        set_target_properties(il2cpp_native_bridge_frida_gum_upstream PROPERTIES
+                IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libfrida-gum.a"
+                INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@/frida-gum"
+                INTERFACE_COMPILE_DEFINITIONS GUM_STATIC)
+        if (ANDROID)
+            set_property(TARGET il2cpp_native_bridge_frida_gum_upstream PROPERTY
+                    INTERFACE_LINK_LIBRARIES log android dl z m)
+        endif ()
+    endif ()
+endif ()
+
+include("${CMAKE_CURRENT_LIST_DIR}/il2cpp_native_bridgeTargets.cmake")
+
+check_required_components(il2cpp_native_bridge)

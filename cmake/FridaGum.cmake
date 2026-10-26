@@ -117,12 +117,30 @@ function(il2cpp_native_bridge_add_frida_gum_backend)
     target_compile_features(il2cpp_native_bridge_frida_gum PUBLIC cxx_std_20)
     il2cpp_native_bridge_apply_cxx_standard(il2cpp_native_bridge_frida_gum)
     il2cpp_native_bridge_enable_warnings(il2cpp_native_bridge_frida_gum)
+    # 用 BUILD_INTERFACE/INSTALL_INTERFACE 分离，避免把构建目录的绝对路径写进导出文件。
     target_include_directories(il2cpp_native_bridge_frida_gum
-            PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
-            PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+            PUBLIC
+            $<BUILD_INTERFACE:${_il2cpp_native_bridge_root}/include>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+            PRIVATE "${_il2cpp_native_bridge_root}/src"
     )
     target_link_libraries(il2cpp_native_bridge_frida_gum
             PUBLIC il2cpp_native_bridge il2cpp_native_bridge_frida_gum_upstream
     )
-    set_target_properties(il2cpp_native_bridge_frida_gum PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    set_target_properties(il2cpp_native_bridge_frida_gum PROPERTIES
+            POSITION_INDEPENDENT_CODE ON
+            EXPORT_NAME frida_gum)
+
+    if (IL2CPP_NATIVE_BRIDGE_INSTALL)
+        # upstream 是 IMPORTED 目标，无法进导出集，由 Config 文件按安装路径重建。
+        install(TARGETS il2cpp_native_bridge_frida_gum
+                EXPORT il2cpp_native_bridgeTargets
+                ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+                INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+        install(FILES "${gum_archive_path}"
+                DESTINATION ${CMAKE_INSTALL_LIBDIR}
+                RENAME libfrida-gum.a)
+        install(FILES "${gum_include_dir}/frida-gum.h"
+                DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/frida-gum)
+    endif ()
 endfunction()
