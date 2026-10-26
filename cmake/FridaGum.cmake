@@ -2,6 +2,10 @@ set(IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_VERSION "17.23.3" CACHE STRING
         "Pinned official precompiled Frida Gum devkit version")
 set(IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT "" CACHE PATH
         "Optional override for the bundled official Frida Gum devkit root")
+set(IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256
+        "1a9d92abe132cee87686df3e95b57d7610d8239b29cd3e5710108fe832727852"
+        CACHE STRING
+        "Expected SHA-256 of libfrida-gum.a for the pinned version; empty disables the check")
 
 get_filename_component(_il2cpp_native_bridge_bundled_gum_root
         "${CMAKE_CURRENT_LIST_DIR}/../third_party/frida-gum/${IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_VERSION}/android-arm64"
@@ -33,7 +37,27 @@ function(il2cpp_native_bridge_add_frida_gum_backend)
     )
     if (NOT gum_include_dir OR NOT gum_archive_path)
         message(FATAL_ERROR
-                "Frida Gum devkit is incomplete at '${gum_devkit_root}'; expected frida-gum.h and libfrida-gum.a")
+                "Frida Gum devkit is incomplete at '${gum_devkit_root}'; expected frida-gum.h and libfrida-gum.a.\n"
+                "The devkit is stored with Git LFS: run 'git lfs pull' in the repository root, "
+                "or pass -DIL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT=<extracted devkit>.")
+    endif ()
+
+    # 归档文件走 Git LFS：未执行 git lfs pull 时，工作区里是 133 字节的指针文件，
+    # 直接链接会在最终链接阶段报错且难以定位，因此在这里用摘要提前拦下。
+    if (IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT STREQUAL "" AND IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256)
+        file(SHA256 "${gum_archive_path}" gum_actual_sha256)
+        if (NOT gum_actual_sha256 STREQUAL IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256)
+            message(FATAL_ERROR
+                    "libfrida-gum.a does not match the pinned digest.\n"
+                    "  path:     ${gum_archive_path}\n"
+                    "  expected: ${IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256}\n"
+                    "  actual:   ${gum_actual_sha256}\n"
+                    "Run 'git lfs pull' in the repository root to materialize the archive, "
+                    "or pass -DIL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256= to skip this check "
+                    "when using a custom devkit.")
+        endif ()
+    elseif (NOT IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT STREQUAL "")
+        message(STATUS "Frida Gum digest check skipped for custom devkit root '${IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT}'")
     endif ()
 
     add_library(il2cpp_native_bridge_frida_gum_upstream STATIC IMPORTED GLOBAL)

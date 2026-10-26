@@ -1,8 +1,8 @@
 #pragma once
 
-#include "il2cpp_native_bridge/detail/il2cpp_api.hpp"
 #include "il2cpp_native_bridge/result.hpp"
 #include "il2cpp_native_bridge/runtime_state.hpp"
+#include "runtime/il2cpp_api.hpp"
 
 #include <memory>
 #include <mutex>

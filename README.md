@@ -4,7 +4,9 @@
 
 首个支持的平台是 Android `arm64-v8a`。主机端构建用于运行单元测试和部分 Unity 生成的兼容性样例。目标兼容范围为 Unity 5.3.0–6000.3.x；只有测试矩阵中记录的版本具备直接验证结果。
 
-Android `arm64-v8a` 构建链接固定版本的 Frida Gum 17.23.3 官方预编译静态开发工具包（`libfrida-gum.a`），文件和公开头文件位于 [`third_party/frida-gum/17.23.3/android-arm64`](third_party/frida-gum/17.23.3/android-arm64)。CMake 使用仓库内的副本，不会在配置阶段下载或构建 Gum。只有在明确改用其他工具包时，才设置 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT`。主机端单元测试使用 Gum API 替身，不链接 Android 工具包。
+Android `arm64-v8a` 构建链接固定版本的 Frida Gum 17.23.3 官方预编译静态开发工具包（`libfrida-gum.a`），文件和公开头文件位于 [`third_party/frida-gum/17.23.3/android-arm64`](third_party/frida-gum/17.23.3/android-arm64)。CMake 使用仓库内的副本，不会在配置阶段下载或构建 Gum。只有在明确改用其他工具包时，才设置 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT`。
+
+`libfrida-gum.a` 通过 Git LFS 存储。克隆后需先执行一次 `git lfs pull`，否则工作区里只有指针文件。CMake 在配置阶段校验该文件的 SHA-256（`IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256`），不匹配时直接报错并提示执行 `git lfs pull`，避免把指针文件带进链接阶段。主机端单元测试使用 Gum API 替身，不链接 Android 工具包。
 
 本库不包含 Frida Gadget、frida-core、GumJS 或 JavaScript 引擎，也不依赖 GameBox 或 BNM。GameBox 现有的 BNM 组件仍可继续使用 Dobby。
 

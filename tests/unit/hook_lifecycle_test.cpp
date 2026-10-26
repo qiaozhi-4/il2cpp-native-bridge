@@ -29,7 +29,7 @@ public:
 
 void run_hook_lifecycle_tests() {
     fake_il2cpp::Fixture fixture;
-    const auto runtime = Runtime::for_testing(fixture.api(), fixture.domain());
+    const auto runtime = detail::make_testing_runtime(fixture.api(), fixture.domain());
     auto setter = runtime.klass("UnityEngine.Time").method<void, float>("set_timeScale");
     auto no_backend = setter.hook({}, replacement);
     test_support::check(!no_backend && no_backend.error().code == ErrorCode::hook_backend_unavailable,
@@ -48,5 +48,5 @@ void run_hook_lifecycle_tests() {
     test_support::check(detail::remove_hook(state).has_value(), "Hook removal must succeed");
     test_support::check(detail::remove_hook(state).has_value(), "Hook removal must be idempotent");
     test_support::check(backend->remove_calls == 1, "idempotent removal must call the backend once");
-    test_support::check(detail::original_function(state) == nullptr, "removed Hook must not expose a stale trampoline");
+    test_support::check(detail::hook_original(state.get()) == nullptr, "removed Hook must not expose a stale trampoline");
 }

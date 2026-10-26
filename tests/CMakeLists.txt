@@ -36,6 +36,15 @@ target_link_libraries(il2cpp_native_bridge_tests PRIVATE
 )
 add_test(NAME il2cpp_native_bridge_tests COMMAND il2cpp_native_bridge_tests)
 
+# 静态析构期行为只能在独立进程中观察，因此单独成可执行文件。
+add_executable(il2cpp_native_bridge_hook_static_lifetime
+        unit/hook_static_lifetime_test.cpp
+)
+target_compile_features(il2cpp_native_bridge_hook_static_lifetime PRIVATE cxx_std_20)
+target_include_directories(il2cpp_native_bridge_hook_static_lifetime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src")
+target_link_libraries(il2cpp_native_bridge_hook_static_lifetime PRIVATE il2cpp_native_bridge)
+add_test(NAME il2cpp_native_bridge_hook_static_lifetime COMMAND il2cpp_native_bridge_hook_static_lifetime)
+
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if (Python3_Interpreter_FOUND)
     add_test(NAME il2cpp_native_bridge_matrix_runner_tests

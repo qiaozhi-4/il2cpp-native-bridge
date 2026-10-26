@@ -10,7 +10,7 @@ void run_field_access_tests() {
     fixture.add_field(klass, "staticCount", "System.Int32", true, sizeof(std::int32_t));
     fixture.add_field(klass, "instanceCount", "System.Int32", false, sizeof(std::int32_t), 16);
     auto* object = fixture.make_object(klass);
-    const auto runtime = Runtime::for_testing(fixture.api(), fixture.domain());
+    const auto runtime = detail::make_testing_runtime(fixture.api(), fixture.domain());
     const auto fields = runtime.klass("Probe.Fields");
 
     auto static_count = fields.field<std::int32_t>("staticCount");

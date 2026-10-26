@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <cmath>
+#include <cstdlib>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -56,6 +57,12 @@ std::string describe(const Result<T>& result) {
     return result ? std::string{} : result.error().message;
 }
 
+/// 从矩阵执行器注入的环境变量读取本次运行的 Unity 版本；库本身无法在运行时得知该值。
+std::string expected_unity_version() {
+    const char* value = std::getenv("IL2CPP_NATIVE_BRIDGE_EXPECTED_VERSION");
+    return value == nullptr ? std::string{} : std::string(value);
+}
+
 std::string build_json(const std::vector<Check>& checks, std::string_view unity_version) {
     std::ostringstream output;
     output << "{\"schemaVersion\":1,\"unityVersion\":\"" << json_escape(unity_version)
@@ -84,7 +91,7 @@ std::string execute_acceptance() {
             add(checks, name, "blocked", "IL2CPP runtime discovery did not complete");
         }
         add(checks, "set_timeScale_find_call_hook_remove_restore", "blocked", "IL2CPP runtime discovery did not complete");
-        return build_json(checks, snapshot.unity_version);
+        return build_json(checks, expected_unity_version());
     }
     add(checks, "runtime_discovery", "passed");
 
@@ -97,7 +104,7 @@ std::string execute_acceptance() {
             add(checks, name, "blocked", "required managed class was not found");
         }
         add(checks, "set_timeScale_find_call_hook_remove_restore", "blocked", "UnityEngine.Time was not found");
-        return build_json(checks, snapshot.unity_version);
+        return build_json(checks, expected_unity_version());
     }
     add(checks, "class_lookup", "passed");
 
@@ -117,7 +124,7 @@ std::string execute_acceptance() {
         add(checks, "field_get_set", "blocked", "required managed methods were not found");
         add(checks, "method_invoke", "blocked", "required managed methods were not found");
         add(checks, "set_timeScale_find_call_hook_remove_restore", "blocked", reason);
-        return build_json(checks, snapshot.unity_version);
+        return build_json(checks, expected_unity_version());
     }
     add(checks, "method_lookup", "passed");
 
@@ -182,7 +189,7 @@ std::string execute_acceptance() {
         "host fixtures validate lookup and invocation; Frida Gum Hook acceptance runs on Android ARM64");
 #endif
 
-    return build_json(checks, snapshot.unity_version);
+    return build_json(checks, expected_unity_version());
 }
 
 } /// namespace

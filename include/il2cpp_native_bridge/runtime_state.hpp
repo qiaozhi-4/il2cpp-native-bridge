@@ -11,16 +11,14 @@ enum class RuntimeState {
     initializing,
     ready,
     unsupported,
-    failed,
-    shutting_down,
 };
 
 struct RuntimeSnapshot {
     RuntimeState state{RuntimeState::waiting_for_module};
-    std::string unity_version;
     std::uint64_t generation{0};
     std::vector<std::string> capabilities;
     std::vector<std::string> missing_apis;
+    std::vector<std::string> missing_optional_apis;
     std::string last_error;
 };
 

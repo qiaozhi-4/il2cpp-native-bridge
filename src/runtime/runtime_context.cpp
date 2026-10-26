@@ -42,6 +42,7 @@ Result<void> refresh_context(const std::shared_ptr<RuntimeContext>& context) {
         const auto exports = resolve_exports(context->module, lookup, context->export_overrides);
         context->api = exports.api;
         context->snapshot.missing_apis = exports.missing_required;
+        context->snapshot.missing_optional_apis = exports.missing_optional;
         if (!exports.has_required_exports()) {
             std::ostringstream message;
             message << "missing required IL2CPP exports:";
@@ -102,6 +103,7 @@ Result<void> refresh_context(const std::shared_ptr<RuntimeContext>& context) {
     context->snapshot.state = RuntimeState::ready;
     context->snapshot.last_error.clear();
     context->snapshot.missing_apis.clear();
+    context->snapshot.missing_optional_apis.clear();
     context->snapshot.capabilities = {"class_lookup", "method_lookup", "field_access", "invocation", "thread_attachment"};
     if (context->api.image_get_class_count != nullptr && context->api.image_get_class != nullptr) {
         context->snapshot.capabilities.emplace_back("class_enumeration");
@@ -110,11 +112,7 @@ Result<void> refresh_context(const std::shared_ptr<RuntimeContext>& context) {
 }
 
 Result<void> require_ready(const std::shared_ptr<RuntimeContext>& context) {
-    auto refreshed = refresh_context(context);
-    if (refreshed) {
-        return refreshed;
-    }
-    return refreshed;
+    return refresh_context(context);
 }
 
 Api api_for(const std::shared_ptr<RuntimeContext>& context) {

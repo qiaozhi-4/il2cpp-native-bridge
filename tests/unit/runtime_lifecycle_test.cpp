@@ -1,7 +1,7 @@
 #include "../test_support.hpp"
 #include "../runtime/fake_il2cpp.hpp"
 #include "il2cpp_native_bridge/bridge.hpp"
-#include "il2cpp_native_bridge/detail/il2cpp_api.hpp"
+#include "runtime/il2cpp_api.hpp"
 
 #include <algorithm>
 #include <cstring>

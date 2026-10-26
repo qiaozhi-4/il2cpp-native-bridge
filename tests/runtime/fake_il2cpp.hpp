@@ -1,6 +1,6 @@
 #pragma once
 
-#include "il2cpp_native_bridge/detail/il2cpp_api.hpp"
+#include "runtime/il2cpp_api.hpp"
 
 #include <array>
 #include <cstddef>

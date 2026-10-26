@@ -1,4 +1,4 @@
-#include "il2cpp_native_bridge/detail/il2cpp_api.hpp"
+#include "runtime/il2cpp_api.hpp"
 
 #include <array>
 
@@ -68,9 +68,6 @@ ResolvedExports resolve_exports(void* module,
     IL2CPP_OPTIONAL(array_new, "il2cpp_array_new");
     IL2CPP_OPTIONAL(class_from_system_type, "il2cpp_class_from_system_type");
     IL2CPP_OPTIONAL(get_corlib, "il2cpp_get_corlib");
-    IL2CPP_OPTIONAL(class_get_field_from_name, "il2cpp_class_get_field_from_name");
-    IL2CPP_OPTIONAL(method_get_from_reflection, "il2cpp_method_get_from_reflection");
-    IL2CPP_OPTIONAL(runtime_class_init, "il2cpp_runtime_class_init");
     IL2CPP_OPTIONAL(image_get_class_count, "il2cpp_image_get_class_count");
     IL2CPP_OPTIONAL(image_get_class, "il2cpp_image_get_class");
 

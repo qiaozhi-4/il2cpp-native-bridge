@@ -15,7 +15,7 @@ void run_member_lookup_tests() {
     fixture.add_class("DuplicateA", "Probe", "Duplicate");
     fixture.add_class("DuplicateB", "Probe", "Duplicate");
 
-    const auto runtime = Runtime::for_testing(fixture.api(), fixture.domain());
+    const auto runtime = detail::make_testing_runtime(fixture.api(), fixture.domain());
     auto setter = runtime.klass("UnityEngine.Time").method<void, float>("set_timeScale");
     test_support::check(setter.found(), "managed class and method names must resolve through the fluent query");
 

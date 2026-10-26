@@ -47,6 +47,16 @@ Result<std::string> managed_name(const Api& api, const Il2CppType* type) {
     return Result<std::string>::success(std::move(name));
 }
 
+Runtime make_testing_runtime(Api api, Il2CppDomain* domain) {
+    auto context = std::make_shared<RuntimeContext>();
+    context->api = api;
+    context->domain = domain;
+    context->injected_api = true;
+    context->snapshot.generation = domain == nullptr ? 0 : 1;
+    context->snapshot.state = domain == nullptr ? RuntimeState::initializing : RuntimeState::ready;
+    return Runtime(std::move(context));
+}
+
 } /// namespace il2cpp_native_bridge::detail
 
 namespace il2cpp_native_bridge {
@@ -112,16 +122,6 @@ Result<void> Runtime::set_export_override(std::string_view symbol_name, void* ad
     }
     context->export_overrides.insert_or_assign(std::string(symbol_name), address);
     return Result<void>::success();
-}
-
-Runtime Runtime::for_testing(detail::Api api, Il2CppDomain* domain) {
-    auto context = std::make_shared<detail::RuntimeContext>();
-    context->api = api;
-    context->domain = domain;
-    context->injected_api = true;
-    context->snapshot.generation = domain == nullptr ? 0 : 1;
-    context->snapshot.state = domain == nullptr ? RuntimeState::initializing : RuntimeState::ready;
-    return Runtime(std::move(context));
 }
 
 RuntimeSnapshot Runtime::snapshot() const {
@@ -194,13 +194,28 @@ ClassQuery ClassQuery::in_assembly(std::string_view assembly_name) const {
 }
 
 FieldQuery<Il2CppObject*> ClassQuery::object_field(std::string_view name) const {
-    if (!result_) return FieldQuery<Il2CppObject*>(Result<FieldHandle>::failure(result_.error()));
-    return FieldQuery<Il2CppObject*>(detail::resolve_field(result_.value(), name, {}));
+    return FieldQuery<Il2CppObject*>(find_field(name, {}));
 }
 
 FieldQuery<Il2CppObject*> ClassQuery::boxed_field(std::string_view name) const {
-    if (!result_) return FieldQuery<Il2CppObject*>(Result<FieldHandle>::failure(result_.error()));
-    return FieldQuery<Il2CppObject*>(detail::resolve_field(result_.value(), name, {}));
+    return FieldQuery<Il2CppObject*>(find_field(name, {}));
+}
+
+Result<MethodHandle> ClassQuery::find_method(std::string_view name,
+                                             std::string_view return_type,
+                                             std::vector<std::string> parameter_types) const {
+    if (!result_) return Result<MethodHandle>::failure(result_.error());
+    return detail::resolve_method(result_.value(), name, return_type, parameter_types);
+}
+
+Result<MethodHandle> ClassQuery::find_method_by_arity(std::string_view name, std::size_t parameter_count) const {
+    if (!result_) return Result<MethodHandle>::failure(result_.error());
+    return detail::resolve_method_by_arity(result_.value(), name, parameter_count);
+}
+
+Result<FieldHandle> ClassQuery::find_field(std::string_view name, std::string_view value_type) const {
+    if (!result_) return Result<FieldHandle>::failure(result_.error());
+    return detail::resolve_field(result_.value(), name, value_type);
 }
 
 Result<std::vector<FieldHandle>> ClassQuery::fields() const {

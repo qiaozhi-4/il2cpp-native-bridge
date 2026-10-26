@@ -26,7 +26,7 @@ Result<FieldHandle> resolve_field(const ClassHandle& klass,
         result.native = field;
         result.name = std::string(name);
         result.value_type = actual_type.take_value();
-        result.is_static = (api.field_get_flags(field) & 0x0010U) != 0;
+        result.is_static = (api.field_get_flags(field) & kFieldAttributeStatic) != 0;
         return Result<FieldHandle>::success(std::move(result));
     }
     const Il2CppFieldInfo* match = nullptr;
@@ -62,7 +62,7 @@ Result<FieldHandle> resolve_field(const ClassHandle& klass,
     result.native = match;
     result.name = std::string(name);
     result.value_type = std::move(matched_type);
-    result.is_static = (api.field_get_flags(match) & 0x0010U) != 0;
+    result.is_static = (api.field_get_flags(match) & kFieldAttributeStatic) != 0;
     cache_metadata(klass.context, std::move(cache_key), const_cast<Il2CppFieldInfo*>(match));
     return Result<FieldHandle>::success(std::move(result));
 }
@@ -87,7 +87,7 @@ Result<std::vector<FieldHandle>> resolve_fields(const ClassHandle& klass) {
         handle.native = field;
         handle.name = name;
         handle.value_type = type_name.take_value();
-        handle.is_static = (api.field_get_flags(field) & 0x0010U) != 0;
+        handle.is_static = (api.field_get_flags(field) & kFieldAttributeStatic) != 0;
         fields.push_back(std::move(handle));
     }
     return Result<std::vector<FieldHandle>>::success(std::move(fields));
@@ -149,6 +149,26 @@ Result<void> write_boxed_field(const FieldHandle& field, Il2CppObject* boxed_val
     if (field.is_static) api.field_static_set_value(field.native, value);
     else api.field_set_value(instance, field.native, value);
     return Result<void>::success();
+}
+
+} /// namespace il2cpp_native_bridge::detail
+
+namespace il2cpp_native_bridge::detail {
+
+Result<void> FieldQueryBase::read_value(Il2CppObject* instance, void* destination, std::size_t size) const {
+    if (!field_) return Result<void>::failure(field_.error());
+    return read_field_raw(field_.value(), instance, destination, size);
+}
+
+Result<void> FieldQueryBase::write_value(Il2CppObject* instance, const void* source, std::size_t size) const {
+    if (!field_) return Result<void>::failure(field_.error());
+    /// IL2CPP 的写入导出沿用非 const 源指针，这里只是转发调用方的只读缓冲。
+    return write_field_raw(field_.value(), instance, const_cast<void*>(source), size);
+}
+
+Result<void> FieldQueryBase::write_boxed_value(Il2CppObject* boxed_value, Il2CppObject* instance) const {
+    if (!field_) return Result<void>::failure(field_.error());
+    return write_boxed_field(field_.value(), boxed_value, instance);
 }
 
 } /// namespace il2cpp_native_bridge::detail

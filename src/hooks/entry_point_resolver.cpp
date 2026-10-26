@@ -1,3 +1,4 @@
+#include "hook_internal.hpp"
 #include "metadata/metadata_internal.hpp"
 
 #include <cstring>

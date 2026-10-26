@@ -1,6 +1,8 @@
 #include "metadata_internal.hpp"
+#include "hooks/hook_internal.hpp"
 
 #include <algorithm>
+#include <cstring>
 
 namespace il2cpp_native_bridge::detail {
 
@@ -35,7 +37,7 @@ Result<std::vector<MethodMetadata>> resolve_methods(const ClassHandle& klass) {
             .name = name,
             .return_type = return_type.take_value(),
             .parameter_types = std::move(parameter_types),
-            .is_static = (flags & 0x0010U) != 0,
+            .is_static = (flags & kMethodAttributeStatic) != 0,
         });
     }
     std::sort(methods.begin(), methods.end(), [](const MethodMetadata& left, const MethodMetadata& right) {
@@ -75,7 +77,7 @@ Result<MethodHandle> resolve_method(const ClassHandle& klass,
         result.name = std::string(name);
         result.return_type = std::string(return_type);
         result.parameter_types = parameter_types;
-        result.is_static = (flags & 0x0010U) != 0;
+        result.is_static = (flags & kMethodAttributeStatic) != 0;
         return Result<MethodHandle>::success(std::move(result));
     }
     const Il2CppMethodInfo* match = nullptr;
@@ -123,7 +125,7 @@ Result<MethodHandle> resolve_method(const ClassHandle& klass,
     result.name = std::string(name);
     result.return_type = std::string(return_type);
     result.parameter_types = parameter_types;
-    result.is_static = (flags & 0x0010U) != 0;
+    result.is_static = (flags & kMethodAttributeStatic) != 0;
     cache_metadata(klass.context, std::move(cache_key), const_cast<Il2CppMethodInfo*>(match));
     return Result<MethodHandle>::success(std::move(result));
 }
@@ -162,7 +164,7 @@ Result<MethodHandle> resolve_method_by_arity(const ClassHandle& klass,
         result.name = std::string(name);
         result.return_type = return_type.take_value();
         result.parameter_types = std::move(parameter_types);
-        result.is_static = (flags & 0x0010U) != 0;
+        result.is_static = (flags & kMethodAttributeStatic) != 0;
         return Result<MethodHandle>::success(std::move(result));
     }
     const Il2CppMethodInfo* match = nullptr;
@@ -207,9 +209,47 @@ Result<MethodHandle> resolve_method_by_arity(const ClassHandle& klass,
     result.name = std::string(name);
     result.return_type = return_type.take_value();
     result.parameter_types = std::move(parameter_types);
-    result.is_static = (flags & 0x0010U) != 0;
+    result.is_static = (flags & kMethodAttributeStatic) != 0;
     cache_metadata(klass.context, std::move(cache_key), const_cast<Il2CppMethodInfo*>(match));
     return Result<MethodHandle>::success(std::move(result));
+}
+
+} /// namespace il2cpp_native_bridge::detail
+
+namespace il2cpp_native_bridge::detail {
+
+Result<Il2CppObject*> MethodQueryBase::invoke_value(Il2CppObject* instance, std::span<void*> arguments) const {
+    if (!method_) return Result<Il2CppObject*>::failure(method_.error());
+    if (!method_.value().is_static && instance == nullptr) {
+        return Result<Il2CppObject*>::failure(make_error(ErrorCode::invalid_instance,
+            "instance method requires a managed object"));
+    }
+    auto outcome = invoke_raw(method_.value(), instance, arguments);
+    if (!outcome) return Result<Il2CppObject*>::failure(outcome.error());
+    return Result<Il2CppObject*>::success(outcome.value().value);
+}
+
+Result<void> MethodQueryBase::copy_value(Il2CppObject* value, void* destination, std::size_t size) const {
+    if (!method_) return Result<void>::failure(method_.error());
+    if (value == nullptr) {
+        return Result<void>::failure(make_error(ErrorCode::invocation_failed, "value-type invocation returned null"));
+    }
+    const auto api = api_for(method_.value().declaring_class.context);
+    if (api.object_unbox == nullptr) {
+        return Result<void>::failure(make_error(ErrorCode::missing_api, "il2cpp_object_unbox is unavailable"));
+    }
+    void* unboxed = api.object_unbox(value);
+    if (unboxed == nullptr) {
+        return Result<void>::failure(make_error(ErrorCode::invocation_failed, "could not unbox method result"));
+    }
+    std::memcpy(destination, unboxed, size);
+    return Result<void>::success();
+}
+
+Result<std::shared_ptr<HookState>> MethodQueryBase::install_value(std::shared_ptr<HookBackend> backend,
+                                                                 void* replacement) const {
+    if (!method_) return Result<std::shared_ptr<HookState>>::failure(method_.error());
+    return install_hook(method_.value(), std::move(backend), replacement);
 }
 
 } /// namespace il2cpp_native_bridge::detail

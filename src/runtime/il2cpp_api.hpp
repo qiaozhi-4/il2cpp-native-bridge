@@ -58,9 +58,6 @@ struct Api {
     Il2CppArray* (*array_new)(Il2CppClass*, std::size_t){};
     Il2CppClass* (*class_from_system_type)(Il2CppObject*){};
     const Il2CppImage* (*get_corlib)(){};
-    const Il2CppFieldInfo* (*class_get_field_from_name)(Il2CppClass*, const char*){};
-    const Il2CppMethodInfo* (*method_get_from_reflection)(Il2CppObject*){};
-    void (*runtime_class_init)(Il2CppClass*){};
     void (*free_memory)(void*){};
 };
 

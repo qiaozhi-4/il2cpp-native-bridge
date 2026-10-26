@@ -24,7 +24,7 @@ void run_invocation_tests() {
             return nullptr;
         });
 
-    const auto runtime = Runtime::for_testing(fixture.api(), fixture.domain());
+    const auto runtime = detail::make_testing_runtime(fixture.api(), fixture.domain());
     auto set_time = runtime.klass("UnityEngine.Time").method<void, float>("set_timeScale");
     auto set_result = set_time.invoke(0.625f);
     test_support::check(set_result && fixture.time_scale() == 0.625f,

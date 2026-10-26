@@ -1,6 +1,5 @@
 #pragma once
 
-#include "detail/il2cpp_api.hpp"
 #include "hook_backend.hpp"
 #include "result.hpp"
 #include "runtime_state.hpp"
@@ -8,6 +7,7 @@
 
 #include <array>
 #include <chrono>
+#include <cstddef>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -20,57 +20,37 @@
 #include <utility>
 #include <vector>
 
+struct Il2CppClass;
+struct Il2CppDomain;
+struct Il2CppFieldInfo;
+struct Il2CppMethodInfo;
+struct Il2CppObject;
+struct Il2CppString;
+
 namespace il2cpp_native_bridge {
 
+class ClassQuery;
+class Runtime;
 struct ClassHandle;
-struct MethodHandle;
 struct FieldHandle;
+struct MethodHandle;
 struct MethodMetadata;
 
-using RuntimeSymbolLookup = detail::SymbolLookup;
-using RuntimeSymbolLookupReady = detail::SymbolLookupReady;
+/// 宿主注入的 IL2CPP 导出符号查找函数。
+using RuntimeSymbolLookup = void* (*)(void* module, const char* symbol_name);
+/// 判断模块是否已可被 RuntimeSymbolLookup 扫描。
+using RuntimeSymbolLookupReady = bool (*)(void* module);
 
 namespace detail {
-struct RuntimeContext;
+struct Api;
 struct HookState;
-Api api_for(const std::shared_ptr<RuntimeContext>& context);
-void* original_function(const std::shared_ptr<HookState>& state) noexcept;
+struct RuntimeContext;
 
-struct InvokeOutcome {
-    Il2CppObject* value{};
-};
+/// 返回 Hook 的原函数跳板；state 由 HookHandle 持有的不透明指针，移除后返回空指针。
+void* hook_original(const void* state) noexcept;
 
-Result<ClassHandle> resolve_class(const std::shared_ptr<RuntimeContext>& context,
-                                  std::string_view full_name,
-                                  const std::optional<std::string>& assembly_name);
-Result<std::vector<ClassHandle>> resolve_classes(const std::shared_ptr<RuntimeContext>& context,
-                                                 std::string_view name_filter);
-Result<ClassHandle> resolve_generic_class(const std::shared_ptr<RuntimeContext>& context,
-                                          std::string_view generic_type_name,
-                                          std::span<const std::string_view> type_arguments,
-                                          const std::optional<std::string>& assembly_name);
-Result<ClassHandle> resolve_object_class(const std::shared_ptr<RuntimeContext>& context, Il2CppObject* instance);
-Result<std::vector<MethodMetadata>> resolve_methods(const ClassHandle& klass);
-Result<std::vector<FieldHandle>> resolve_fields(const ClassHandle& klass);
-Result<Il2CppObject*> allocate_object(const ClassHandle& klass);
-Result<MethodHandle> resolve_method(const ClassHandle& klass,
-                                    std::string_view name,
-                                    std::string_view return_type,
-                                    const std::vector<std::string>& parameter_types);
-Result<MethodHandle> resolve_method_by_arity(const ClassHandle& klass,
-                                             std::string_view name,
-                                             std::size_t parameter_count);
-Result<FieldHandle> resolve_field(const ClassHandle& klass,
-                                  std::string_view name,
-                                  std::string_view value_type);
-Result<void> read_field_raw(const FieldHandle& field, Il2CppObject* instance, void* destination, std::size_t size);
-Result<void> write_field_raw(const FieldHandle& field, Il2CppObject* instance, void* source, std::size_t size);
-Result<void> write_boxed_field(const FieldHandle& field, Il2CppObject* boxed_value, Il2CppObject* instance);
-Result<InvokeOutcome> invoke_raw(const MethodHandle& method, Il2CppObject* instance, std::span<void*> arguments);
-Result<void*> resolve_entry_point(const MethodHandle& method);
-Result<std::shared_ptr<HookState>> install_hook(const MethodHandle& method,
-                                                std::shared_ptr<HookBackend> backend,
-                                                void* replacement);
+/// 以注入的导出表构造 Runtime，仅供测试使用。
+Runtime make_testing_runtime(Api api, Il2CppDomain* domain);
 } /// namespace detail
 
 struct ClassHandle {
@@ -104,9 +84,6 @@ struct MethodMetadata {
     std::vector<std::string> parameter_types;
     bool is_static{};
 };
-
-class Runtime;
-class ClassQuery;
 
 struct RuntimeWaitOptions {
     std::chrono::milliseconds poll_interval{100};
@@ -142,7 +119,6 @@ public:
                                           RuntimeSymbolLookup lookup,
                                           RuntimeSymbolLookupReady is_ready = nullptr);
     static Result<void> set_export_override(std::string_view symbol_name, void* address);
-    static Runtime for_testing(detail::Api api, Il2CppDomain* domain);
 
     [[nodiscard]] RuntimeSnapshot snapshot() const;
     Result<void> refresh() const;
@@ -186,6 +162,7 @@ private:
 
     friend class ThreadAttachment;
     friend class ClassQuery;
+    friend Runtime detail::make_testing_runtime(detail::Api api, Il2CppDomain* domain);
 };
 
 template <typename Return, typename... Args>
@@ -225,6 +202,13 @@ public:
 private:
     ClassQuery(Runtime runtime, std::string full_name, std::optional<std::string> assembly_name);
     ClassQuery(Runtime runtime, Result<ClassHandle> result);
+
+    Result<MethodHandle> find_method(std::string_view name,
+                                     std::string_view return_type,
+                                     std::vector<std::string> parameter_types) const;
+    Result<MethodHandle> find_method_by_arity(std::string_view name, std::size_t parameter_count) const;
+    Result<FieldHandle> find_field(std::string_view name, std::string_view value_type) const;
+
     Runtime runtime_;
     std::string full_name_;
     std::optional<std::string> assembly_name_;
@@ -233,38 +217,49 @@ private:
     friend class Runtime;
 };
 
-template <typename T>
-class FieldQuery {
+namespace detail {
+
+/// FieldQuery 的非模板基类：持有已解析字段并提供按字节读写的实现入口。
+class FieldQueryBase {
 public:
     [[nodiscard]] bool found() const noexcept { return field_.has_value(); }
     [[nodiscard]] const Error& error() const { return field_.error(); }
+    [[nodiscard]] std::string_view value_type_name() const noexcept {
+        return field_ ? std::string_view(field_.value().value_type) : std::string_view{};
+    }
 
+protected:
+    explicit FieldQueryBase(Result<FieldHandle> field) : field_(std::move(field)) {}
+    Result<void> read_value(Il2CppObject* instance, void* destination, std::size_t size) const;
+    Result<void> write_value(Il2CppObject* instance, const void* source, std::size_t size) const;
+    Result<void> write_boxed_value(Il2CppObject* boxed_value, Il2CppObject* instance) const;
+
+    Result<FieldHandle> field_;
+};
+
+} /// namespace detail
+
+template <typename T>
+class FieldQuery : public detail::FieldQueryBase {
+public:
     Result<T> get(Il2CppObject* instance = nullptr) const {
-        if (!field_) return Result<T>::failure(field_.error());
         T value{};
-        auto read = detail::read_field_raw(field_.value(), instance, &value, sizeof(T));
+        auto read = read_value(instance, &value, sizeof(T));
         if (!read) return Result<T>::failure(read.error());
         return Result<T>::success(value);
     }
 
     Result<void> set(const T& value, Il2CppObject* instance = nullptr) const {
-        if (!field_) return Result<void>::failure(field_.error());
         T copy = value;
-        return detail::write_field_raw(field_.value(), instance, &copy, sizeof(T));
-    }
-
-    [[nodiscard]] std::string_view value_type_name() const noexcept {
-        return field_ ? std::string_view(field_.value().value_type) : std::string_view{};
+        return write_value(instance, &copy, sizeof(T));
     }
 
     Result<void> set_boxed(Il2CppObject* boxed_value, Il2CppObject* instance = nullptr) const {
-        if (!field_) return Result<void>::failure(field_.error());
-        return detail::write_boxed_field(field_.value(), boxed_value, instance);
+        return write_boxed_value(boxed_value, instance);
     }
 
 private:
-    explicit FieldQuery(Result<FieldHandle> field) : field_(std::move(field)) {}
-    Result<FieldHandle> field_;
+    explicit FieldQuery(Result<FieldHandle> field) : detail::FieldQueryBase(std::move(field)) {}
 
     friend class ClassQuery;
 };
@@ -301,12 +296,29 @@ private:
     std::shared_ptr<detail::HookState> state_;
 };
 
-template <typename Return, typename... Args>
-class MethodQuery {
+namespace detail {
+
+/// MethodQuery 的非模板基类：持有已解析方法并提供调用与安装的实现入口。
+class MethodQueryBase {
 public:
     [[nodiscard]] bool found() const noexcept { return method_.has_value(); }
     [[nodiscard]] const Error& error() const { return method_.error(); }
 
+protected:
+    explicit MethodQueryBase(Result<MethodHandle> method) : method_(std::move(method)) {}
+    Result<Il2CppObject*> invoke_value(Il2CppObject* instance, std::span<void*> arguments) const;
+    Result<void> copy_value(Il2CppObject* value, void* destination, std::size_t size) const;
+    Result<std::shared_ptr<HookState>> install_value(std::shared_ptr<HookBackend> backend,
+                                                     void* replacement) const;
+
+    Result<MethodHandle> method_;
+};
+
+} /// namespace detail
+
+template <typename Return, typename... Args>
+class MethodQuery : public detail::MethodQueryBase {
+public:
     Result<Return> invoke(Args... args) const { return invoke_on(nullptr, std::forward<Args>(args)...); }
 
     Result<Return> invoke_on(Il2CppObject* instance, Args... args) const {
@@ -316,59 +328,45 @@ public:
         }
         auto values = std::tuple<std::remove_cvref_t<Args>...>(std::forward<Args>(args)...);
         auto pointers = argument_pointers(values, std::index_sequence_for<Args...>{});
-        auto result = detail::invoke_raw(method_.value(), instance,
-                                         std::span<void*>(pointers.data(), pointers.size()));
+        auto result = invoke_value(instance, std::span<void*>(pointers.data(), pointers.size()));
         if (!result) return Result<Return>::failure(result.error());
 
         if constexpr (std::is_void_v<Return>) {
             return Result<void>::success();
         } else if constexpr (std::is_pointer_v<Return>) {
-            return Result<Return>::success(reinterpret_cast<Return>(result.value().value));
+            return Result<Return>::success(reinterpret_cast<Return>(result.value()));
         } else {
-            if (result.value().value == nullptr) {
-                return Result<Return>::failure(make_error(ErrorCode::invocation_failed, "value-type invocation returned null"));
-            }
-            const auto api = detail::api_for(method_.value().declaring_class.context);
-            if (api.object_unbox == nullptr) {
-                return Result<Return>::failure(make_error(ErrorCode::missing_api, "il2cpp_object_unbox is unavailable"));
-            }
-            void* unboxed = api.object_unbox(result.value().value);
-            if (unboxed == nullptr) {
-                return Result<Return>::failure(make_error(ErrorCode::invocation_failed, "could not unbox method result"));
-            }
             Return value{};
-            std::memcpy(&value, unboxed, sizeof(Return));
+            auto copied = copy_value(result.value(), &value, sizeof(Return));
+            if (!copied) return Result<Return>::failure(copied.error());
             return Result<Return>::success(value);
         }
     }
 
     Result<HookHandle<Return, Args...>> hook(std::shared_ptr<HookBackend> backend,
                                              Return (*replacement)(Args...)) const {
-        if (!method_) return Result<HookHandle<Return, Args...>>::failure(method_.error());
-        auto installed = detail::install_hook(method_.value(), std::move(backend), reinterpret_cast<void*>(replacement));
-        if (!installed) return Result<HookHandle<Return, Args...>>::failure(installed.error());
-        return Result<HookHandle<Return, Args...>>::success(HookHandle<Return, Args...>(installed.take_value()));
+        using Handle = HookHandle<Return, Args...>;
+        auto installed = install_value(std::move(backend), reinterpret_cast<void*>(replacement));
+        if (!installed) return Result<Handle>::failure(installed.error());
+        return Result<Handle>::success(Handle(installed.take_value()));
     }
 
     Result<HookHandle<Return, Il2CppObject*, Args...>> hook_instance(
         std::shared_ptr<HookBackend> backend,
         Return (*replacement)(Il2CppObject*, Args...)) const {
-        using InstanceHook = HookHandle<Return, Il2CppObject*, Args...>;
-        if (!method_) return Result<InstanceHook>::failure(method_.error());
-        auto installed = detail::install_hook(method_.value(), std::move(backend), reinterpret_cast<void*>(replacement));
-        if (!installed) return Result<InstanceHook>::failure(installed.error());
-        return Result<InstanceHook>::success(InstanceHook(installed.take_value()));
+        using Handle = HookHandle<Return, Il2CppObject*, Args...>;
+        auto installed = install_value(std::move(backend), reinterpret_cast<void*>(replacement));
+        if (!installed) return Result<Handle>::failure(installed.error());
+        return Result<Handle>::success(Handle(installed.take_value()));
     }
 
 private:
-    explicit MethodQuery(Result<MethodHandle> method) : method_(std::move(method)) {}
+    explicit MethodQuery(Result<MethodHandle> method) : detail::MethodQueryBase(std::move(method)) {}
 
     template <typename Tuple, std::size_t... Indices>
     static std::array<void*, sizeof...(Indices)> argument_pointers(Tuple& values, std::index_sequence<Indices...>) {
         return {static_cast<void*>(std::addressof(std::get<Indices>(values)))...};
     }
-
-    Result<MethodHandle> method_;
 
     friend class ClassQuery;
 };
@@ -376,32 +374,29 @@ private:
 template <typename Return, typename... Args>
 typename HookHandle<Return, Args...>::Function HookHandle<Return, Args...>::original() const noexcept {
     if (!state_) return nullptr;
-    return reinterpret_cast<Function>(detail::original_function(state_));
+    return reinterpret_cast<Function>(detail::hook_original(state_.get()));
 }
 
 template <typename Return, typename... Args>
 MethodQuery<Return, Args...> ClassQuery::method(std::string_view name) const {
     static_assert((requires { ManagedTypeName<std::remove_cvref_t<Args>>::value; } && ...), "method argument type has no IL2CPP name mapping");
     static_assert(requires { ManagedTypeName<std::remove_cvref_t<Return>>::value; }, "method result type has no IL2CPP name mapping");
-    if (!result_) return MethodQuery<Return, Args...>(Result<MethodHandle>::failure(result_.error()));
-    const std::vector<std::string> parameters{std::string(managed_type_name<Args>)...};
-    return MethodQuery<Return, Args...>(detail::resolve_method(result_.value(), name,
-        managed_type_name<Return>, parameters));
+    std::vector<std::string> parameters;
+    parameters.reserve(sizeof...(Args));
+    (parameters.emplace_back(managed_type_name<Args>), ...);
+    return MethodQuery<Return, Args...>(find_method(name, managed_type_name<Return>, std::move(parameters)));
 }
 
 template <typename Return, typename... Args>
 MethodQuery<Return, Args...> ClassQuery::method(std::string_view name,
                                                 std::size_t managed_parameter_count) const {
-    if (!result_) return MethodQuery<Return, Args...>(Result<MethodHandle>::failure(result_.error()));
-    return MethodQuery<Return, Args...>(detail::resolve_method_by_arity(
-        result_.value(), name, managed_parameter_count));
+    return MethodQuery<Return, Args...>(find_method_by_arity(name, managed_parameter_count));
 }
 
 template <typename T>
 FieldQuery<T> ClassQuery::field(std::string_view name) const {
     static_assert(requires { ManagedTypeName<std::remove_cvref_t<T>>::value; }, "field type has no IL2CPP name mapping");
-    if (!result_) return FieldQuery<T>(Result<FieldHandle>::failure(result_.error()));
-    return FieldQuery<T>(detail::resolve_field(result_.value(), name, managed_type_name<T>));
+    return FieldQuery<T>(find_field(name, managed_type_name<T>));
 }
 
 } /// namespace il2cpp_native_bridge
