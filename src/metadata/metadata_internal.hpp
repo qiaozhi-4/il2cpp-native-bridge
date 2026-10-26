@@ -24,6 +24,9 @@ Result<void> validate_method_handle(const MethodHandle& method);
 Result<void> validate_field_handle(const FieldHandle& field);
 Result<std::string> managed_name(const Api& api, const Il2CppType* type);
 
+/// 判断镜像名与请求的程序集名是否指同一程序集，容忍 ".dll" 后缀差异。
+bool assembly_name_matches(std::string_view image_name, std::string_view requested_name);
+
 Result<ClassHandle> resolve_class(const std::shared_ptr<RuntimeContext>& context,
                                   std::string_view full_name,
                                   const std::optional<std::string>& assembly_name);

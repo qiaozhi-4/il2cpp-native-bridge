@@ -12,6 +12,17 @@
 
 namespace il2cpp_native_bridge::detail {
 
+/// 类解析缓存上限。超限时整体清空，避免长驻进程按查询次数无界增长。
+inline constexpr std::size_t kClassCacheLimit = 4096;
+/// 方法与字段解析缓存上限，策略同上。
+inline constexpr std::size_t kMetadataCacheLimit = 8192;
+
+/// 类解析缓存条目。保留镜像名，使缓存命中与未命中两条路径返回一致的程序集名。
+struct ClassCacheEntry {
+    Il2CppClass* native{};
+    std::string assembly_name;
+};
+
 struct RuntimeContext {
     mutable std::mutex mutex;
     mutable std::mutex metadata_cache_mutex;
@@ -24,6 +35,7 @@ struct RuntimeContext {
     RuntimeSnapshot snapshot;
     bool injected_api{};
     std::unordered_map<std::string, void*> metadata_cache;
+    std::unordered_map<std::string, ClassCacheEntry> class_cache;
     std::unordered_map<std::string, void*> export_overrides;
 
     ~RuntimeContext();
@@ -55,5 +67,10 @@ Api api_for(const std::shared_ptr<RuntimeContext>& context);
 std::uint64_t generation_for(const std::shared_ptr<RuntimeContext>& context);
 void* find_cached_metadata(const std::shared_ptr<RuntimeContext>& context, std::string_view key);
 void cache_metadata(const std::shared_ptr<RuntimeContext>& context, std::string key, void* value);
+bool find_cached_class(const std::shared_ptr<RuntimeContext>& context, std::string_view key, ClassCacheEntry& out);
+void cache_class(const std::shared_ptr<RuntimeContext>& context,
+                 std::string key,
+                 Il2CppClass* native,
+                 std::string assembly_name);
 
 } /// namespace il2cpp_native_bridge::detail

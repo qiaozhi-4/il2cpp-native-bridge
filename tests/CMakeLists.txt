@@ -4,6 +4,7 @@ add_executable(il2cpp_native_bridge_tests
         unit/frida_gum_backend_test.cpp
         unit/runtime_lifecycle_test.cpp
         unit/member_lookup_test.cpp
+        unit/class_cache_test.cpp
         unit/field_access_test.cpp
         unit/invocation_test.cpp
         unit/hook_lifecycle_test.cpp

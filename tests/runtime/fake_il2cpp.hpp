@@ -76,6 +76,11 @@ public:
     float time_scale() const { return time_scale_; }
     int instance_count(const Il2CppObject* object, std::size_t offset) const;
 
+    /// 累计 class_from_name 调用次数，用于断言类解析是否命中缓存。
+    std::size_t class_lookup_count() const;
+    /// 清零 class_from_name 计数。
+    void reset_class_lookup_count();
+
 private:
     Il2CppDomain domain_;
     std::deque<Il2CppAssembly> assemblies_;

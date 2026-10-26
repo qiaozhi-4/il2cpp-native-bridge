@@ -8,6 +8,7 @@ namespace {
 Il2CppThread fake_thread;
 Il2CppThread* current_thread{};
 fake_il2cpp::Fixture* active_fixture{};
+std::size_t class_lookup_calls{};
 
 Il2CppDomain* domain_get() { return active_fixture == nullptr ? nullptr : active_fixture->domain(); }
 const Il2CppAssembly** domain_get_assemblies(const Il2CppDomain* domain, std::size_t* count) {
@@ -18,6 +19,7 @@ const Il2CppAssembly** domain_get_assemblies(const Il2CppDomain* domain, std::si
 const Il2CppImage* assembly_get_image(const Il2CppAssembly* assembly) { return assembly == nullptr ? nullptr : assembly->image; }
 const char* image_get_name(const Il2CppImage* image) { return image == nullptr ? nullptr : image->name.c_str(); }
 Il2CppClass* class_from_name(const Il2CppImage* image, const char* name_space, const char* name) {
+    ++class_lookup_calls;
     if (image == nullptr || name_space == nullptr || name == nullptr) return nullptr;
     for (auto* klass : image->classes) {
         if (klass->name_space == name_space && klass->name == name) return klass;
@@ -181,5 +183,9 @@ int Fixture::instance_count(const Il2CppObject* object, std::size_t offset) cons
     std::memcpy(&value, object->bytes.data() + offset, sizeof(value));
     return value;
 }
+
+std::size_t Fixture::class_lookup_count() const { return class_lookup_calls; }
+
+void Fixture::reset_class_lookup_count() { class_lookup_calls = 0; }
 
 } /// namespace fake_il2cpp

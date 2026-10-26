@@ -5,20 +5,6 @@
 #include <string_view>
 
 namespace il2cpp_native_bridge::detail {
-namespace {
-
-bool assembly_name_matches(std::string_view image_name, std::string_view requested_name) {
-    if (image_name == requested_name) return true;
-    constexpr std::string_view dll_suffix = ".dll";
-    if (image_name.ends_with(dll_suffix) &&
-        image_name.substr(0, image_name.size() - dll_suffix.size()) == requested_name) {
-        return true;
-    }
-    return requested_name.ends_with(dll_suffix) &&
-           requested_name.substr(0, requested_name.size() - dll_suffix.size()) == image_name;
-}
-
-} /// namespace
 
 Result<ClassHandle> resolve_class(const std::shared_ptr<RuntimeContext>& context,
                                   std::string_view full_name,
@@ -38,21 +24,21 @@ Result<ClassHandle> resolve_class(const std::shared_ptr<RuntimeContext>& context
         return Result<ClassHandle>::failure(make_error(ErrorCode::invalid_argument, "class name is empty"));
     }
 
+    /// 无论是否限定程序集都查缓存：无程序集限定时同样能命中，避免每次全量扫描。
     const auto generation = generation_for(context);
-    std::string cache_key;
-    if (assembly_name.has_value()) {
-        cache_key = metadata_cache_key("class", generation, nullptr);
-        append_metadata_cache_part(cache_key, full_name);
-        append_metadata_cache_part(cache_key, *assembly_name);
-        if (auto* cached = find_cached_metadata(context, cache_key); cached != nullptr) {
-            ClassHandle handle;
-            handle.context = context;
-            handle.native = static_cast<Il2CppClass*>(cached);
-            handle.generation = generation;
-            handle.full_name = std::string(full_name);
-            handle.assembly_name = *assembly_name;
-            return Result<ClassHandle>::success(std::move(handle));
-        }
+    auto cache_key = metadata_cache_key("class", generation, nullptr);
+    append_metadata_cache_part(cache_key, full_name);
+    if (assembly_name.has_value()) append_metadata_cache_part(cache_key, *assembly_name);
+
+    ClassCacheEntry cached;
+    if (find_cached_class(context, cache_key, cached)) {
+        ClassHandle handle;
+        handle.context = context;
+        handle.native = cached.native;
+        handle.generation = generation;
+        handle.full_name = std::string(full_name);
+        handle.assembly_name = std::move(cached.assembly_name);
+        return Result<ClassHandle>::success(std::move(handle));
     }
 
     const auto api = api_for(context);
@@ -67,7 +53,8 @@ Result<ClassHandle> resolve_class(const std::shared_ptr<RuntimeContext>& context
         return Result<ClassHandle>::failure(make_error(ErrorCode::runtime_not_ready, "IL2CPP returned no assembly list"));
     }
 
-    ClassHandle found;
+    Il2CppClass* matched = nullptr;
+    std::string matched_assembly;
     std::size_t matches = 0;
     for (std::size_t index = 0; index < assembly_count; ++index) {
         const auto* assembly = assemblies[index];
@@ -80,11 +67,8 @@ Result<ClassHandle> resolve_class(const std::shared_ptr<RuntimeContext>& context
         auto* klass = api.class_from_name(image, name_space.c_str(), class_name.c_str());
         if (klass == nullptr) continue;
         ++matches;
-        found.context = context;
-        found.native = klass;
-        found.generation = generation_for(context);
-        found.full_name = std::string(full_name);
-        found.assembly_name = current_assembly;
+        matched = klass;
+        matched_assembly = current_assembly;
     }
 
     if (matches == 0) {
@@ -95,7 +79,15 @@ Result<ClassHandle> resolve_class(const std::shared_ptr<RuntimeContext>& context
         return Result<ClassHandle>::failure(make_error(ErrorCode::ambiguous_match,
             "managed class matched multiple assemblies: " + std::string(full_name)));
     }
-    if (assembly_name.has_value()) cache_metadata(context, std::move(cache_key), found.native);
+
+    cache_class(context, std::move(cache_key), matched, matched_assembly);
+
+    ClassHandle found;
+    found.context = context;
+    found.native = matched;
+    found.generation = generation;
+    found.full_name = std::string(full_name);
+    found.assembly_name = std::move(matched_assembly);
     return Result<ClassHandle>::success(std::move(found));
 }
 
@@ -124,6 +116,9 @@ Result<std::vector<ClassHandle>> resolve_classes(const std::shared_ptr<RuntimeCo
             "IL2CPP returned no assembly list"));
     }
 
+    /// 代际在整次枚举期间不变，循环外取一次即可，避免每个类都取一次锁。
+    const auto generation = generation_for(context);
+
     std::vector<ClassHandle> classes;
     for (std::size_t assembly_index = 0; assembly_index < assembly_count; ++assembly_index) {
         const auto* assembly = assemblies[assembly_index];
@@ -148,7 +143,7 @@ Result<std::vector<ClassHandle>> resolve_classes(const std::shared_ptr<RuntimeCo
             ClassHandle handle;
             handle.context = context;
             handle.native = native;
-            handle.generation = generation_for(context);
+            handle.generation = generation;
             handle.full_name = std::move(full_name);
             handle.assembly_name = assembly_name;
             classes.push_back(std::move(handle));

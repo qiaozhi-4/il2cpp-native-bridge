@@ -47,6 +47,17 @@ Result<std::string> managed_name(const Api& api, const Il2CppType* type) {
     return Result<std::string>::success(std::move(name));
 }
 
+bool assembly_name_matches(std::string_view image_name, std::string_view requested_name) {
+    if (image_name == requested_name) return true;
+    constexpr std::string_view dll_suffix = ".dll";
+    if (image_name.ends_with(dll_suffix) &&
+        image_name.substr(0, image_name.size() - dll_suffix.size()) == requested_name) {
+        return true;
+    }
+    return requested_name.ends_with(dll_suffix) &&
+           requested_name.substr(0, requested_name.size() - dll_suffix.size()) == image_name;
+}
+
 Runtime make_testing_runtime(Api api, Il2CppDomain* domain) {
     auto context = std::make_shared<RuntimeContext>();
     context->api = api;
@@ -190,6 +201,10 @@ ClassQuery::ClassQuery(Runtime runtime, Result<ClassHandle> result)
 }
 
 ClassQuery ClassQuery::in_assembly(std::string_view assembly_name) const {
+    /// 已解析且程序集匹配时直接复用，避免构造新的 ClassQuery 触发第二次全量扫描。
+    if (result_ && detail::assembly_name_matches(result_.value().assembly_name, assembly_name)) {
+        return ClassQuery(runtime_, result_);
+    }
     return ClassQuery(runtime_, full_name_, std::string(assembly_name));
 }
 
