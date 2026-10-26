@@ -10,7 +10,7 @@ Unity 5.3.0f4 仅作为测试主机上的运行时样例，因为该 Unity 系�
 
 Android 平台的 CMake 构建默认将 `IL2CPP_NATIVE_BRIDGE_BUILD_FRIDA_GUM_BACKEND` 设为 `ON`，并链接仓库内固定版本的 Frida Gum 17.23.3 Android ARM64 开发工具包（`libfrida-gum.a`），文件位于 `third_party/frida-gum/17.23.3/android-arm64`。配置和构建无需联网，也不会从源码构建 Gum。只有在明确提供其他开发工具包时，才使用可选配置 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT`。主机端单元测试使用 API 替身，不链接 Android 静态库。
 
-该静态库由 Git LFS 存储，克隆后需执行 `git lfs pull`。CMake 会校验 `libfrida-gum.a` 的 SHA-256（默认值固定为 17.23.3 的摘要，可用 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256` 覆盖或置空），摘要不符时在配置阶段终止，而不是把 LFS 指针文件留到链接阶段。
+该静态库随仓库一起提交。CMake 会校验 `libfrida-gum.a` 的 SHA-256（默认值固定为 17.23.3 的摘要，可用 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256` 覆盖或置空），摘要不符时在配置阶段终止，而不是把损坏的归档留到链接阶段。
 
 ```sh
 cmake -S . -B build/android-arm64 \

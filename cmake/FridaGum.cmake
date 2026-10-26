@@ -38,12 +38,11 @@ function(il2cpp_native_bridge_add_frida_gum_backend)
     if (NOT gum_include_dir OR NOT gum_archive_path)
         message(FATAL_ERROR
                 "Frida Gum devkit is incomplete at '${gum_devkit_root}'; expected frida-gum.h and libfrida-gum.a.\n"
-                "The devkit is stored with Git LFS: run 'git lfs pull' in the repository root, "
-                "or pass -DIL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT=<extracted devkit>.")
+                "Restore the pinned 17.23.3 devkit, or pass "
+                "-DIL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT=<extracted devkit>.")
     endif ()
 
-    # 归档文件走 Git LFS：未执行 git lfs pull 时，工作区里是 133 字节的指针文件，
-    # 直接链接会在最终链接阶段报错且难以定位，因此在这里用摘要提前拦下。
+    # 预编译归档一旦被截断或替换，链接阶段才会暴露问题且难以定位，因此用摘要提前拦下。
     if (IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT STREQUAL "" AND IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256)
         file(SHA256 "${gum_archive_path}" gum_actual_sha256)
         if (NOT gum_actual_sha256 STREQUAL IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256)
@@ -52,8 +51,8 @@ function(il2cpp_native_bridge_add_frida_gum_backend)
                     "  path:     ${gum_archive_path}\n"
                     "  expected: ${IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256}\n"
                     "  actual:   ${gum_actual_sha256}\n"
-                    "Run 'git lfs pull' in the repository root to materialize the archive, "
-                    "or pass -DIL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256= to skip this check "
+                    "Restore the pinned 17.23.3 devkit, or pass "
+                    "-DIL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256= to skip this check "
                     "when using a custom devkit.")
         endif ()
     elseif (NOT IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT STREQUAL "")

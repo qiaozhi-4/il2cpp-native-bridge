@@ -20,4 +20,4 @@ frida-gum.h     1661de20286e0f41967c2c673257b58d42869a99aee651ce2501f3908440f117
 
 Frida Gum 许可证及其静态链接例外保存在 [`../../../../LICENSES/FRIDA_GUM_COPYING.txt`](../../../../LICENSES/FRIDA_GUM_COPYING.txt)。CMake 直接链接此静态库，不会下载或构建 Frida Gum。
 
-`libfrida-gum.a` 由 Git LFS 存储，克隆后需执行 `git lfs pull` 才会落地真实文件。CMake 配置阶段会用上表中的摘要校验它（`IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256`），不匹配时立即报错。
+CMake 配置阶段会用上表中的摘要校验 `libfrida-gum.a`（`IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_SHA256`），不匹配时立即报错。
