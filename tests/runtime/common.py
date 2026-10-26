@@ -14,6 +14,15 @@ from typing import Any
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_PROJECT = REPOSITORY_ROOT / "tests" / "fixtures" / "unity" / "BridgeFixture"
+
+# blocked 记录的原因分类。任何 blocked 都必须落在其中一类，便于按原因分组统计与判断解除条件。
+BLOCK_REASONS = (
+    "no_editor",             # Unity Editor 可执行文件缺失或许可证未激活
+    "no_device",             # Android 设备缺失或未就绪
+    "no_ndk",                # Android NDK 缺失
+    "toolchain_missing",     # adb / cmake 等构建工具缺失，或原生插件构建前置条件不满足
+    "host_platform_mismatch",# 主机端 fixture 要求 Linux x86_64，当前主机不匹配
+)
 CHECKS = (
     "runtime_discovery",
     "class_lookup",
@@ -123,9 +132,21 @@ def make_run_record(entry: dict[str, Any], target: str) -> dict[str, Any]:
     return result_for(entry, target, "not_run", "runtime execution has not started")
 
 
-def blocked(entry: dict[str, Any], target: str, reasons: list[str]) -> dict[str, Any]:
-    detail = "; ".join(reasons)
-    return result_for(entry, target, "blocked", detail)
+def blocked(entry: dict[str, Any], target: str, reasons: list[tuple[str, str]]) -> dict[str, Any]:
+    """构造 blocked 记录。
+
+    reasons 是 (code, detail) 列表，code 取自 BLOCK_REASONS；记录上的 reason 字段取第一条，
+    便于按原因分组统计。
+    """
+    if not reasons:
+        raise ValueError("a blocked run requires at least one reason")
+    for code, _ in reasons:
+        if code not in BLOCK_REASONS:
+            raise ValueError(f"unknown block reason code: {code}")
+    detail = "; ".join(text for _, text in reasons)
+    record = result_for(entry, target, "blocked", detail)
+    record["reason"] = reasons[0][0]
+    return record
 
 
 def find_executable(value: str | None, environment_names: tuple[str, ...], default_name: str) -> str | None:

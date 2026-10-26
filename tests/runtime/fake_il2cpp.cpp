@@ -1,14 +1,17 @@
 #include "fake_il2cpp.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <new>
 
 namespace {
 Il2CppThread fake_thread;
-Il2CppThread* current_thread{};
+/// 与真实 IL2CPP 一致：线程附加状态是每线程独立的。
+thread_local Il2CppThread* current_thread{};
 fake_il2cpp::Fixture* active_fixture{};
-std::size_t class_lookup_calls{};
+/// 会被多线程测试并发递增，因此用原子类型。
+std::atomic<std::size_t> class_lookup_calls{};
 
 Il2CppDomain* domain_get() { return active_fixture == nullptr ? nullptr : active_fixture->domain(); }
 const Il2CppAssembly** domain_get_assemblies(const Il2CppDomain* domain, std::size_t* count) {
@@ -184,8 +187,8 @@ int Fixture::instance_count(const Il2CppObject* object, std::size_t offset) cons
     return value;
 }
 
-std::size_t Fixture::class_lookup_count() const { return class_lookup_calls; }
+std::size_t Fixture::class_lookup_count() const { return class_lookup_calls.load(std::memory_order_relaxed); }
 
-void Fixture::reset_class_lookup_count() { class_lookup_calls = 0; }
+void Fixture::reset_class_lookup_count() { class_lookup_calls.store(0, std::memory_order_relaxed); }
 
 } /// namespace fake_il2cpp

@@ -9,6 +9,8 @@ add_executable(il2cpp_native_bridge_tests
         unit/invocation_test.cpp
         unit/hook_lifecycle_test.cpp
         unit/hook_slot_test.cpp
+        unit/concurrency_test.cpp
+        unit/perform_when_ready_test.cpp
 )
 add_library(il2cpp_native_bridge_frida_gum_test_stub STATIC
         frida_gum_stub/fake_frida_gum.cpp
@@ -39,6 +41,22 @@ target_link_libraries(il2cpp_native_bridge_tests PRIVATE
         il2cpp_native_bridge_frida_gum_test_stub
 )
 add_test(NAME il2cpp_native_bridge_tests COMMAND il2cpp_native_bridge_tests)
+
+# 每个分组单独注册成一条 CTest，失败时能直接定位到具体范围。
+set(IL2CPP_NATIVE_BRIDGE_TEST_GROUPS
+        runtime_lifecycle
+        frida_gum_backend
+        member_lookup
+        class_cache
+        field_access
+        invocation
+        hook_lifecycle
+        hook_slot
+        concurrency
+        perform_when_ready)
+foreach (group IN LISTS IL2CPP_NATIVE_BRIDGE_TEST_GROUPS)
+    add_test(NAME "bridge.${group}" COMMAND il2cpp_native_bridge_tests --only "${group}")
+endforeach ()
 
 # 静态析构期行为只能在独立进程中观察，因此单独成可执行文件。
 add_executable(il2cpp_native_bridge_hook_static_lifetime

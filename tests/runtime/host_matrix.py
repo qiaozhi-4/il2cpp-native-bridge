@@ -26,21 +26,21 @@ def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
     version = entry["unityVersion"]
     target = "linux-x64"
     build_root = REPOSITORY_ROOT / "build" / "matrix" / version / target
-    reasons: list[str] = []
+    reasons: list[tuple[str, str]] = []
     if not host_machine_supported():
-        reasons.append(f"host fixture requires Linux x86_64; current host is {platform.system()} {platform.machine()}")
+        reasons.append(("host_platform_mismatch", f"host fixture requires Linux x86_64; current host is {platform.system()} {platform.machine()}"))
     editor = find_unity_editor(version, options.unity_editor)
     cmake = find_executable(None, (), "cmake")
     if editor is None:
-        reasons.append("Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR")
+        reasons.append(("no_editor", "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"))
     if cmake is None:
-        reasons.append("CMake executable was not found")
+        reasons.append(("toolchain_missing", "CMake executable was not found"))
     if reasons:
         return blocked(entry, target, reasons)
 
     plugin, error, is_blocked = build_native_plugin(target, build_root, cmake, None, options.android_platform)
     if error:
-        return blocked(entry, target, [error]) if is_blocked else _failed(entry, target, "native fixture plugin build failed", error)
+        return blocked(entry, target, [("toolchain_missing", error)]) if is_blocked else _failed(entry, target, "native fixture plugin build failed", error)
 
     player_path = build_root / "player.x86_64"
     project = make_fixture_project(target, version, plugin, build_root)
@@ -52,7 +52,7 @@ def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
         shutil.rmtree(project, ignore_errors=True)
     if not built:
         if unity_license_missing(log):
-            return blocked(entry, target, ["Unity Editor license is inactive; activate it in Unity Hub before testing"])
+            return blocked(entry, target, [("no_editor", "Unity Editor license is inactive; activate it in Unity Hub before testing")])
         return _failed(entry, target, "Unity player build failed", log)
 
     try:

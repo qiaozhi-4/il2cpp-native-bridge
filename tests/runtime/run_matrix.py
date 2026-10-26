@@ -60,6 +60,7 @@ def run_selection(matrix: dict[str, Any], args: argparse.Namespace) -> dict[str,
                 record = result_for(entry, target, "failed", f"matrix command timed out: {error}")
             except OSError as error:
                 record = result_for(entry, target, "blocked", f"matrix command could not start: {error}")
+                record["reason"] = "toolchain_missing"
         runs.append(record)
 
     statuses = {run["status"] for run in runs}

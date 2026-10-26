@@ -37,17 +37,17 @@ def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
     editor = find_unity_editor(version, options.unity_editor)
     ndk = find_android_ndk(options.ndk)
     device = options.device or os.environ.get("ANDROID_SERIAL")
-    reasons: list[str] = []
+    reasons: list[tuple[str, str]] = []
     if not device:
-        reasons.append("Android device serial is missing; pass --device or set ANDROID_SERIAL")
+        reasons.append(("no_device", "Android device serial is missing; pass --device or set ANDROID_SERIAL"))
     if adb is None:
-        reasons.append("adb executable was not found")
+        reasons.append(("toolchain_missing", "adb executable was not found"))
     if cmake is None:
-        reasons.append("CMake executable was not found")
+        reasons.append(("toolchain_missing", "CMake executable was not found"))
     if editor is None:
-        reasons.append("Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR")
+        reasons.append(("no_editor", "Unity Editor executable was not found; set --unity-editor or UNITY_EDITOR"))
     if ndk is None:
-        reasons.append("Android NDK was not found; set --ndk, ANDROID_NDK_HOME, or ANDROID_NDK_ROOT")
+        reasons.append(("no_ndk", "Android NDK was not found; set --ndk, ANDROID_NDK_HOME, or ANDROID_NDK_ROOT"))
     if reasons:
         return blocked(entry, target, reasons)
 
@@ -56,7 +56,7 @@ def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
         timeout=15, check=False,
     )
     if ready.returncode != 0 or ready.stdout.strip() != "device":
-        return blocked(entry, target, [f"Android device is not ready: {(ready.stderr or ready.stdout).replace(device, '<redacted>').strip()}"])
+        return blocked(entry, target, [("no_device", f"Android device is not ready: {(ready.stderr or ready.stdout).replace(device, '<redacted>').strip()}")])
     abi = subprocess.run(
         [adb, "-s", device, "shell", "getprop", "ro.product.cpu.abi"],
         capture_output=True, text=True, timeout=15, check=False,
@@ -68,7 +68,7 @@ def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
         target, build_root, cmake, ndk, options.android_platform
     )
     if error:
-        return blocked(entry, target, [error]) if is_blocked else _failed(entry, target, "native fixture plugin build failed", error)
+        return blocked(entry, target, [("toolchain_missing", error)]) if is_blocked else _failed(entry, target, "native fixture plugin build failed", error)
 
     apk_path = build_root / "bridge-fixture.apk"
     project = make_fixture_project(target, version, plugin, build_root)
@@ -78,7 +78,7 @@ def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
         shutil.rmtree(project, ignore_errors=True)
     if not built:
         if unity_license_missing(log):
-            return blocked(entry, target, ["Unity Editor license is inactive; activate it in Unity Hub before testing"])
+            return blocked(entry, target, [("no_editor", "Unity Editor license is inactive; activate it in Unity Hub before testing")])
         return _failed(entry, target, "Unity Android player build failed", log)
 
     installed = subprocess.run(
