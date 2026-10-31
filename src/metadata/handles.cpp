@@ -59,9 +59,7 @@ bool assembly_name_matches(std::string_view image_name, std::string_view request
 }
 
 Runtime make_testing_runtime(Api api, Il2CppDomain* domain) {
-    auto context = std::make_shared<RuntimeContext>();
-    context->api = api;
-    context->domain = domain;
+    auto context = make_testing_context(api, domain);
     context->injected_api = true;
     context->snapshot.generation = domain == nullptr ? 0 : 1;
     context->snapshot.state = domain == nullptr ? RuntimeState::initializing : RuntimeState::ready;
@@ -74,7 +72,7 @@ namespace il2cpp_native_bridge {
 namespace {
 
 std::shared_ptr<detail::RuntimeContext> current_runtime_context() {
-    static const auto context = std::make_shared<detail::RuntimeContext>();
+    static const auto context = detail::make_runtime_context();
     return context;
 }
 

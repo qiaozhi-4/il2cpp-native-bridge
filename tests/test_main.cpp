@@ -13,8 +13,22 @@ void run_hook_lifecycle_tests();
 void run_hook_slot_tests();
 void run_concurrency_tests();
 void run_perform_when_ready_tests();
+void run_facade_perform_tests();
+void run_facade_scope_tests();
+void run_facade_query_tests();
+void run_facade_invoke_tests();
+void run_managed_replacement_tests();
+void run_native_abi_profile_tests();
+void run_facade_capability_tests();
+void run_facade_diagnostics_tests();
 
 namespace {
+
+/// 门面执行入口与作用域用例同属一个验收分组。
+void run_facade_perform_group() {
+    run_facade_perform_tests();
+    run_facade_scope_tests();
+}
 
 struct Group {
     const char* name;
@@ -33,6 +47,13 @@ constexpr Group kGroups[] = {
         {"hook_slot", run_hook_slot_tests},
         {"concurrency", run_concurrency_tests},
         {"perform_when_ready", run_perform_when_ready_tests},
+        {"facade_perform", run_facade_perform_group},
+        {"facade_query", run_facade_query_tests},
+        {"facade_invoke", run_facade_invoke_tests},
+        {"managed_replacement", run_managed_replacement_tests},
+        {"abi_profile", run_native_abi_profile_tests},
+        {"facade_capability", run_facade_capability_tests},
+        {"facade_diagnostics", run_facade_diagnostics_tests},
 };
 
 } /// namespace

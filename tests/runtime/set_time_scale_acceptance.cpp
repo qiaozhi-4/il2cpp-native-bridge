@@ -1,15 +1,20 @@
 #include "il2cpp_native_bridge/bridge.hpp"
+#include "il2cpp_native_bridge/il2cpp.hpp"
 
 #if IL2CPP_NATIVE_BRIDGE_HAS_FRIDA_GUM
 #include "il2cpp_native_bridge/frida_gum_hook_backend.hpp"
 #endif
 
 #include <atomic>
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdlib>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -65,8 +70,9 @@ std::string expected_unity_version() {
 
 std::string build_json(const std::vector<Check>& checks, std::string_view unity_version) {
     std::ostringstream output;
-    output << "{\"schemaVersion\":1,\"unityVersion\":\"" << json_escape(unity_version)
-           << "\",\"checks\":{";
+    // experiment 明确标注本次是「真实运行时验收」，与原生编译产物、候选 ABI 实验区分开。
+    output << "{\"schemaVersion\":1,\"experiment\":\"runtime-acceptance\",\"unityVersion\":\""
+           << json_escape(unity_version) << "\",\"checks\":{";
     for (std::size_t index = 0; index < checks.size(); ++index) {
         if (index != 0) output << ',';
         const auto& check = checks[index];
@@ -78,7 +84,8 @@ std::string build_json(const std::vector<Check>& checks, std::string_view unity_
     return output.str();
 }
 
-std::string execute_acceptance() {
+/// 旧 Time smoke：单线程、旧接口，作为独立回归保留。
+std::vector<Check> legacy_checks() {
     using namespace il2cpp_native_bridge;
     std::vector<Check> checks;
     auto runtime = Runtime::current();
@@ -91,7 +98,7 @@ std::string execute_acceptance() {
             add(checks, name, "blocked", "IL2CPP runtime discovery did not complete");
         }
         add(checks, "set_timeScale_find_call_hook_remove_restore", "blocked", "IL2CPP runtime discovery did not complete");
-        return build_json(checks, expected_unity_version());
+        return checks;
     }
     add(checks, "runtime_discovery", "passed");
 
@@ -104,7 +111,7 @@ std::string execute_acceptance() {
             add(checks, name, "blocked", "required managed class was not found");
         }
         add(checks, "set_timeScale_find_call_hook_remove_restore", "blocked", "UnityEngine.Time was not found");
-        return build_json(checks, expected_unity_version());
+        return checks;
     }
     add(checks, "class_lookup", "passed");
 
@@ -124,7 +131,7 @@ std::string execute_acceptance() {
         add(checks, "field_get_set", "blocked", "required managed methods were not found");
         add(checks, "method_invoke", "blocked", "required managed methods were not found");
         add(checks, "set_timeScale_find_call_hook_remove_restore", "blocked", reason);
-        return build_json(checks, expected_unity_version());
+        return checks;
     }
     add(checks, "method_lookup", "passed");
 
@@ -189,8 +196,125 @@ std::string execute_acceptance() {
         "host fixtures validate lookup and invocation; Frida Gum Hook acceptance runs on Android ARM64");
 #endif
 
-    return build_json(checks, expected_unity_version());
+    return checks;
 }
+
+/// 被替换的托管方法：静态 int(int)。回调把它整体放大 40。
+std::atomic<int> g_replacement_calls{0};
+
+int replacement_overloaded(il2cpp_native_bridge::ReplacementCall<int, int>& call, int value) {
+    g_replacement_calls.fetch_add(1, std::memory_order_relaxed);
+    return call.original(value) + 40;
+}
+
+/**
+ * 新门面的验收主体：在一个 perform 里跑完整对象链。
+ *
+ * 失败通过返回值报告，由调用方转成 check 状态；这里不抛异常。
+ */
+void facade_body(std::vector<Check>& checks) {
+    using namespace il2cpp_native_bridge;
+
+    /// 同名类双程序集：按 image 限定解析，两个程序集的行为必须不同。
+    auto tag_a = Il2Cpp::domain().assembly("ProbeA").image()
+                         .klass("Il2CppNativeBridge.Tests.SharedProbe")
+                         .method("AssemblyTag", 0)
+                         .invoke<Il2CppString*>();
+    auto tag_b = Il2Cpp::domain().assembly("ProbeB").image()
+                         .klass("Il2CppNativeBridge.Tests.SharedProbe")
+                         .method("AssemblyTag", 0)
+                         .invoke<Il2CppString*>();
+    add(checks, "facade_dual_assembly", tag_a != nullptr && tag_b != nullptr && tag_a != tag_b ? "passed" : "failed",
+        tag_a != nullptr && tag_b != nullptr ? std::string{} : "a same-named class could not be resolved per assembly");
+
+    /// G1 参数槽：primitive 按值、引用按对象指针值、null 合法。
+    auto probe = Il2Cpp::domain().assembly("Assembly-CSharp").image()
+                         .klass("Il2CppNativeBridge.Tests.SourceProbe");
+    const int sum = probe.method("Add", 2).invoke<int, int, int>(2, 3);
+    const bool toggled = probe.method("Toggle", 1).invoke<bool, bool>(true);
+    const float scaled = probe.method("Scale", 1).invoke<float, float>(1.5f);
+    const double halved = probe.method("Half", 1).invoke<double, double>(4.0);
+    auto* text = probe.method("Echo", 1).invoke<Il2CppString*, Il2CppString*>(tag_a);
+    auto* nothing = probe.method("Identity", 1).invoke<Il2CppObject*, Il2CppObject*>(nullptr);
+    const bool slots_ok = sum == 5 && !toggled && std::fabs(scaled - 3.0f) < 0.001f &&
+                          std::fabs(halved - 2.0) < 0.001 && text == tag_a && nothing == nullptr;
+    add(checks, "facade_invoke_slots", slots_ok ? "passed" : "failed",
+        slots_ok ? std::string{} : "a primitive, reference or null slot round trip failed");
+
+    /// 实例槽：托管实例经 obj 传入，实例方法读写自己的字段。
+    auto* instance = probe.method("Create", 0).invoke<Il2CppObject*>();
+    int read_back = -1;
+    if (instance != nullptr) {
+        probe.method("Write", 1).invoke_on<void, int>(instance, 5);
+        read_back = probe.method("Read", 0).invoke_on<int>(instance);
+    }
+    const bool instance_ok = instance != nullptr && read_back == 5;
+    add(checks, "facade_instance_slot", instance_ok ? "passed" : "failed",
+        instance_ok ? std::string{}
+                    : std::string("instance=") + (instance == nullptr ? "null" : "ok") +
+                      " read_back=" + std::to_string(read_back));
+
+    /// 托管替换：implementation → 回调生效 → original 转发 → revert 后回到原实现。
+    const std::string_view int_parameters[] = {"System.Int32"};
+    auto overloaded = Il2Cpp::domain().assembly("Assembly-CSharp").image()
+                              .klass("Il2CppNativeBridge.Tests.BridgeFixture")
+                              .method("Overloaded", 1)
+                              .overload(int_parameters);
+    const int before = overloaded.invoke<int, int>(10);
+    g_replacement_calls.store(0, std::memory_order_relaxed);
+    overloaded.implementation(&replacement_overloaded);
+    const int replaced = overloaded.invoke<int, int>(10);
+    const int calls = g_replacement_calls.load(std::memory_order_relaxed);
+    overloaded.revert();
+    const int after = overloaded.invoke<int, int>(10);
+    const bool replace_ok = before == 11 && replaced == 51 && calls == 1 && after == 11;
+    add(checks, "facade_managed_replacement", replace_ok ? "passed" : "failed",
+        replace_ok ? std::string{}
+                   : "before=" + std::to_string(before) + " replaced=" + std::to_string(replaced) +
+                     " calls=" + std::to_string(calls) + " after=" + std::to_string(after));
+}
+
+/// 异步 perform：提交立即返回，完成在另一个线程到达。
+std::vector<Check> facade_checks() {
+    using namespace il2cpp_native_bridge;
+    std::vector<Check> checks;
+
+    std::mutex mutex;
+    std::condition_variable signal;
+    bool completed = false;
+    std::string failure;
+    std::thread::id completion_thread;
+    const std::thread::id submitter = std::this_thread::get_id();
+
+    const auto submitted = Il2Cpp::perform(
+            [&] { facade_body(checks); },
+            [&](Result<void> result) {
+                completion_thread = std::this_thread::get_id();
+                if (!result) failure = result.error().message;
+                std::lock_guard lock(mutex);
+                completed = true;
+                signal.notify_all();
+            });
+    if (!submitted) {
+        add(checks, "facade_async_perform", "failed", "the perform request was rejected");
+        return checks;
+    }
+
+    bool finished = false;
+    {
+        std::unique_lock lock(mutex);
+        finished = signal.wait_for(lock, std::chrono::seconds(30), [&] { return completed; });
+    }
+    const bool async_ok = finished && failure.empty() && completion_thread != submitter;
+    add(checks, "facade_async_perform", async_ok ? "passed" : "failed",
+        async_ok ? std::string{}
+                 : (!finished ? "the perform request did not complete within 30s" : failure));
+    return checks;
+}
+
+std::mutex g_state_mutex;
+std::vector<Check> g_checks;
+std::string g_result;
 
 } /// namespace
 
@@ -198,8 +322,40 @@ extern "C"
 #if defined(__GNUC__)
 __attribute__((visibility("default")))
 #endif
+void BridgeAcceptanceBegin() {
+    auto checks = legacy_checks();
+    std::lock_guard lock(g_state_mutex);
+    g_checks = std::move(checks);
+}
+
+extern "C"
+#if defined(__GNUC__)
+__attribute__((visibility("default")))
+#endif
+const char* BridgeAcceptanceRunFacade() {
+    auto checks = facade_checks();
+    std::lock_guard lock(g_state_mutex);
+    g_checks.insert(g_checks.end(), checks.begin(), checks.end());
+    g_result = build_json(g_checks, expected_unity_version());
+    return g_result.c_str();
+}
+
+extern "C"
+#if defined(__GNUC__)
+__attribute__((visibility("default")))
+#endif
+const char* BridgeAcceptanceFinish() {
+    std::lock_guard lock(g_state_mutex);
+    g_result = build_json(g_checks, expected_unity_version());
+    return g_result.c_str();
+}
+
+extern "C"
+#if defined(__GNUC__)
+__attribute__((visibility("default")))
+#endif
 const char* RunBridgeAcceptance() {
-    static thread_local std::string result;
-    result = execute_acceptance();
-    return result.c_str();
+    BridgeAcceptanceBegin();
+    (void) BridgeAcceptanceRunFacade();
+    return BridgeAcceptanceFinish();
 }

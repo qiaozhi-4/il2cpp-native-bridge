@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import time
@@ -21,11 +22,16 @@ from common import (
     make_run_record,
     merge_runtime_result,
     parse_result_marker,
+    redact,
     unity_license_missing,
 )
 
 
 PACKAGE_NAME = "com.il2cppnativebridge.fixture"
+# 验收结果同时落盘：logcat 会截断长行，完整 JSON 只能从文件取。
+# Unity 的 persistentDataPath 在 Android 上是外部私有目录，因此两个位置都尝试。
+RESULT_FILE_EXTERNAL = "/sdcard/Android/data/" + PACKAGE_NAME + "/files/bridge-result.json"
+RESULT_FILE_INTERNAL = "files/bridge-result.json"
 
 
 def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
@@ -57,12 +63,14 @@ def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
     )
     if ready.returncode != 0 or ready.stdout.strip() != "device":
         return blocked(entry, target, [("no_device", f"Android device is not ready: {(ready.stderr or ready.stdout).replace(device, '<redacted>').strip()}")])
+    # 只要求设备能跑 arm64：部分设备的 ro.product.cpu.abi 报 32 位主 ABI 或 x86_64，
+    # 真正的判据是 abilist 里包含 arm64-v8a。
     abi = subprocess.run(
-        [adb, "-s", device, "shell", "getprop", "ro.product.cpu.abi"],
+        [adb, "-s", device, "shell", "getprop", "ro.product.cpu.abilist"],
         capture_output=True, text=True, timeout=15, check=False,
     )
-    if abi.returncode != 0 or abi.stdout.strip() != "arm64-v8a":
-        return _failed(entry, target, "selected device is not arm64-v8a", abi.stdout + abi.stderr)
+    if abi.returncode != 0 or "arm64-v8a" not in abi.stdout:
+        return _failed(entry, target, "selected device cannot run arm64-v8a", abi.stdout + abi.stderr)
 
     plugin, error, is_blocked = build_native_plugin(
         target, build_root, cmake, ndk, options.android_platform
@@ -94,6 +102,11 @@ def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
     )
     if stopped.returncode != 0:
         return _failed(entry, target, "Unity fixture could not be stopped before launch", stopped.stdout + stopped.stderr)
+    # 清掉上一次的结果文件，避免读到过期 JSON。
+    subprocess.run([adb, "-s", device, "shell", "rm", "-f", RESULT_FILE_EXTERNAL],
+                   capture_output=True, text=True, timeout=15, check=False)
+    subprocess.run([adb, "-s", device, "shell", "run-as", PACKAGE_NAME, "rm", "-f", RESULT_FILE_INTERNAL],
+                   capture_output=True, text=True, timeout=15, check=False)
     cleared = subprocess.run(
         [adb, "-s", device, "logcat", "-c"],
         capture_output=True, text=True, timeout=15, check=False,
@@ -116,7 +129,7 @@ def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
             capture_output=True, text=True, timeout=20, check=False,
         )
         log_output = logs.stdout + logs.stderr
-        payload = parse_result_marker(log_output)
+        payload = _read_result_file(adb, device, options.timeout) or parse_result_marker(log_output)
         if payload is not None:
             break
         time.sleep(1)
@@ -127,9 +140,28 @@ def run(entry: dict[str, Any], options: Any) -> dict[str, Any]:
     return merge_runtime_result(make_run_record(entry, target), payload)
 
 
+def _read_result_file(adb: str, device: str, timeout: int) -> dict[str, Any] | None:
+    """读取完整验收 JSON：先看外部私有目录，再退回 run-as；文件不存在或未写完时返回 None。"""
+    candidates = (
+        [adb, "-s", device, "shell", "cat", RESULT_FILE_EXTERNAL],
+        [adb, "-s", device, "shell", "run-as", PACKAGE_NAME, "cat", RESULT_FILE_INTERNAL],
+    )
+    for command in candidates:
+        read = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=False)
+        if read.returncode != 0 or not read.stdout.strip():
+            continue
+        try:
+            payload = json.loads(read.stdout)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return None
+
+
 def _failed(entry: dict[str, Any], target: str, reason: str, details: str) -> dict[str, Any]:
     from common import result_for
 
     result = result_for(entry, target, "failed", reason)
-    result["details"] = f"{reason}: {details[-12000:]}"
+    result["details"] = redact(f"{reason}: {details[-12000:]}")
     return result

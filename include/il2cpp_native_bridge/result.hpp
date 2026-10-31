@@ -23,15 +23,52 @@ enum class ErrorCode {
     stale_handle,
     invalid_argument,
     internal_error,
+    /// 新门面：在 perform 或 replacement 作用域之外执行了运行时操作。
+    scope_violation,
+    /// 新门面：有界资源（请求队列、managed 替换名额）已耗尽。
+    resource_exhausted,
+    /// 新门面：恢复已发出但底层未确认完成，调用方可在之后重试。
+    restore_pending,
+    /// 新门面：目标地址已由其他所有者（旧 Hook 或外部调用方）管理。
+    owner_conflict,
+};
+
+/// 失败发生的阶段；旧调用方不设置该字段，保持 none。
+enum class ErrorStage {
+    none,
+    submit,
+    readiness,
+    scope,
+    lookup,
+    bind,
+    invoke,
+    replacement,
+    restore,
+    completion,
 };
 
 struct Error {
     ErrorCode code{ErrorCode::internal_error};
     std::string message;
+    ErrorStage stage{ErrorStage::none};
+    /// 已知的域/程序集/类/方法名称路径，只用于定位，不含对象内容或设备信息。
+    std::string path;
 };
 
 inline Error make_error(ErrorCode code, std::string message) {
-    return Error{code, std::move(message)};
+    Error error;
+    error.code = code;
+    error.message = std::move(message);
+    return error;
+}
+
+inline Error make_error(ErrorCode code, ErrorStage stage, std::string path, std::string message) {
+    Error error;
+    error.code = code;
+    error.message = std::move(message);
+    error.stage = stage;
+    error.path = std::move(path);
+    return error;
 }
 
 template <typename T>

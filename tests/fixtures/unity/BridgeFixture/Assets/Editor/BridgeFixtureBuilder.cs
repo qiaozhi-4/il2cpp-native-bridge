@@ -13,6 +13,7 @@ internal static class BridgeFixtureBuilder
 
     public static void Build()
     {
+        ApplyExternalToolsFromEnvironment();
         string expectedVersion = RequiredEnvironment("IL2CPP_NATIVE_BRIDGE_EXPECTED_VERSION");
         if (!String.Equals(Application.unityVersion, expectedVersion, StringComparison.Ordinal))
         {
@@ -39,6 +40,53 @@ internal static class BridgeFixtureBuilder
         {
             throw new InvalidOperationException("Unity player build failed: " + error);
         }
+    }
+
+    /// <summary>
+    /// 只生成 IL2CPP 源码：配置 Android/ARM64/IL2CPP 后触发一次构建。
+    ///
+    /// 生成代码在原生编译之前写入 Library/il2cppOutput，因此后续原生或 Gradle 阶段失败
+    /// 不影响取证；本入口不配置原生插件，也不代表一次可运行的玩家构建。
+    /// </summary>
+    public static void GenerateIl2CppSource()
+    {
+        ApplyExternalToolsFromEnvironment();
+        ConfigureScriptingBackend(BuildTarget.Android);
+        ConfigureAndroidArchitecture(BuildTarget.Android);
+        SetApplicationIdentifier(BuildTarget.Android);
+        EnsureScene();
+
+        string outputPath = Path.Combine("build", "source-probe.apk");
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+        try
+        {
+            object buildResult = BuildPipeline.BuildPlayer(
+                new[] { ScenePath }, outputPath, BuildTarget.Android, BuildOptions.Development);
+            string error = GetBuildFailure(buildResult);
+            if (!String.IsNullOrEmpty(error))
+            {
+                Debug.LogWarning("source-only build stopped after IL2CPP generation: " + error);
+            }
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning("source-only build stopped after IL2CPP generation: " + exception);
+        }
+    }
+
+    /// <summary>
+    /// 从环境变量接收 Android SDK/NDK/JDK 路径，供没有安装 Hub 模块包的机器复用已有工具链。
+    /// 未设置时保留 Editor 中已有配置。
+    /// </summary>
+    private static void ApplyExternalToolsFromEnvironment()
+    {
+        string sdk = Environment.GetEnvironmentVariable("IL2CPP_NATIVE_BRIDGE_ANDROID_SDK");
+        string ndk = Environment.GetEnvironmentVariable("IL2CPP_NATIVE_BRIDGE_ANDROID_NDK");
+        string jdk = Environment.GetEnvironmentVariable("IL2CPP_NATIVE_BRIDGE_ANDROID_JDK");
+        if (!String.IsNullOrEmpty(sdk)) EditorPrefs.SetString("AndroidSdkRoot", sdk);
+        if (!String.IsNullOrEmpty(ndk)) EditorPrefs.SetString("AndroidNdkRoot", ndk);
+        if (!String.IsNullOrEmpty(jdk)) EditorPrefs.SetString("JdkPath", jdk);
+        Debug.Log("external tools: sdk=" + (sdk ?? "<unchanged>") + " ndk=" + (ndk ?? "<unchanged>"));
     }
 
     private static void SetApplicationIdentifier(BuildTarget target)
@@ -190,9 +238,10 @@ internal static class BridgeFixtureBuilder
     private static void ConfigureNativePlugin(BuildTarget target)
     {
         AssetDatabase.Refresh();
+        // Android 上 DllImport("name") 解析的是 libname.so，因此插件文件名必须带 lib 前缀。
         string assetPath = target == BuildTarget.Android
-            ? "Assets/Plugins/Android/arm64-v8a/" + PluginName + ".so"
-            : "Assets/Plugins/x86_64/" + PluginName + ".so";
+            ? "Assets/Plugins/Android/arm64-v8a/lib" + PluginName + ".so"
+            : "Assets/Plugins/x86_64/lib" + PluginName + ".so";
         PluginImporter importer = AssetImporter.GetAtPath(assetPath) as PluginImporter;
         if (importer == null)
         {

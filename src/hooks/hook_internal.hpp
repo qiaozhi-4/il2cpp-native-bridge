@@ -20,6 +20,10 @@ struct HookState {
 };
 
 Result<void*> resolve_entry_point(const MethodHandle& method);
+/// 按 MethodInfo 解析实现入口；供新门面的 managed replacement 复用。
+Result<void*> resolve_entry_point_address(const Il2CppMethodInfo* method);
+/// 该地址是否被旧 Hook 占用（未移除）。
+bool legacy_hook_active(void* target);
 Result<std::shared_ptr<HookState>> install_hook(const MethodHandle& method,
                                                 std::shared_ptr<HookBackend> backend,
                                                 void* replacement);

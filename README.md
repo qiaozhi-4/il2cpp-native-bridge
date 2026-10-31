@@ -13,3 +13,23 @@ CMake 会校验压缩包的 SHA-256（`IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ARCHIVE_SH
 本仓库编写的桥接代码采用 MIT 许可证。Frida Gum 使用附带静态链接例外的 wxWindows Library Licence 3.1，详见 [`LICENSES/FRIDA_GUM_COPYING.txt`](LICENSES/FRIDA_GUM_COPYING.txt)。
 
 C++ API 见 [`docs/api.md`](docs/api.md)，验证范围和证据边界见 [`docs/compatibility.md`](docs/compatibility.md)。Unity fixture 的矩阵入口为 `tests/runtime/run_matrix.py`。它会构建原生 acceptance 插件和对应 Unity 玩家，在玩家进程中检查运行时发现、按名称查询、字段访问、重载选择、托管调用，以及 Android ARM64 上的 `UnityEngine.Time.set_timeScale` Frida Gum Hook 生命周期。没有所需 Editor、NDK 或设备时，结果会记录为 `blocked`。
+
+## 新门面
+
+`il2cpp_native_bridge/il2cpp.hpp` 提供一个入口的用法：一次 `Il2Cpp::perform` 里完成查找、调用与托管方法替换，库内部负责等待运行时、附加线程与后端选择。
+
+```cpp
+#include "il2cpp_native_bridge/il2cpp.hpp"
+
+void on_set_time_scale(il2cpp_native_bridge::ReplacementCall<void, float>& call, float value) {
+    call.original(value * 2.0f);
+}
+
+Il2Cpp::perform([] {
+    auto time = Il2Cpp::domain().assembly("UnityEngine.CoreModule").image().klass("UnityEngine.Time");
+    time.method("setTimeScale", 1).implementation(&on_set_time_scale);
+    time.method("setTimeScale", 1).revert();
+});
+```
+
+替换前会读取 `UnityEngine.Application.get_unityVersion` 选择 ABI profile；宿主必须保留该 getter（IL2CPP 只为可达方法生成代码），否则替换按 `not_found` 拒绝，查询与调用不受影响。已验证的运行时版本见 [`docs/compatibility.md`](docs/compatibility.md)，其他版本按 `candidate` 处理（可安装但不声称支持）。

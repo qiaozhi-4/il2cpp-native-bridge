@@ -10,13 +10,29 @@ Unity 5.3.0f4 仅作为测试主机上的运行时样例，因为该 Unity 系�
 
 ## 已验证范围
 
-**暂无 Android 运行时验证。** 到目前为止没有任何 Unity 版本在 Android 上完成过 `UnityEngine.Time.set_timeScale` 的查找、调用、Gum Hook、移除与恢复流程；矩阵中 `passed` 的样例数为 0。
+**Unity 6000.3.10f1、2021.3.39f1、2022.3.62f2 已完成 Android arm64 运行时验证**（arm64 模拟器，API 29/33）。
+验证内容包括新门面的完整对象链、参数槽、实例槽、托管方法替换与恢复，以及固定 Gum 17.23.3 的释放屏障。
+报告见 [`build/bridge-perform-unity/gate-report.json`](../../../build/bridge-perform-unity/gate-report.json)
+与 [`build/t031-unity/evidence.md`](../../../build/t031-unity/evidence.md)。
 
-已实际验证的只有构建与主机端单元测试：
+2021.3 与 2022.3 是目标应用的实测版本（`com.hypergryph.arknights` = 2021.3.39f1，
+`com.rsg.wdyz` = 2022.3.62f2）。
+
+| 关口 | 结果 | 证据 |
+|---|---|---|
+| G1 参数槽 | 通过 | primitive 按值地址、引用按指针值、null 合法 |
+| G2 原生形态 | 通过 | 同名类按 image 解析；static/instance 替换均生效 |
+| G3 Gum 屏障 | 通过 | 8 项检查全 true，安装窗口 1,740 万次并发调用 0 非法值 |
+| 托管替换链 | 通过 | `implementation → original+40 → revert`，`11 → 51 → 11` |
+
+**未验证的版本**：2019–2023 中除 2021.3、2022.3 之外的 modern 版本，以及 5.3–2018.2 的 legacy family。
+前者按 `candidate` 处理（可安装但不声称支持），后者直接 `rejected`。
+
+主机端验证：
 
 | 项目 | 证据 |
 |---|---|
-| 主机端单元测试 13 个用例 | 常规 `-Werror`、ASan+UBSan、TSan 三种配置下全部通过 |
+| 主机端单元测试 21 个用例 | 常规 `-Werror`、ASan+UBSan、TSan 三种配置下全部通过 |
 | Android `arm64-v8a` 交叉编译 | 产出 `libil2cpp_native_bridge.a` 与 `libil2cpp_native_bridge_frida_gum.a` |
 | 官方 Gum 静态库校验与解压 | 压缩包与解压后 `libfrida-gum.a` 的 SHA-256 均在配置阶段校验 |
 | GameBox 消费方构建 | `mrfz`、`wdyz` 编译链接通过 |

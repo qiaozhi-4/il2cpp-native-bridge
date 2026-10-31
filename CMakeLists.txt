@@ -54,15 +54,26 @@ add_library(il2cpp_native_bridge STATIC
         src/runtime/runtime_context.cpp
         src/runtime/thread_attachment.cpp
         src/runtime/thread_attachment_public.cpp
+        src/facade/perform.cpp
+        src/facade/queries.cpp
+        src/facade/invocation.cpp
         src/metadata/handles.cpp
         src/metadata/class_query.cpp
         src/metadata/method_query.cpp
         src/metadata/field_access.cpp
         src/invoke/method_invoke.cpp
         src/hooks/entry_point_resolver.cpp
+        src/hooks/abi_profile.cpp
+        src/hooks/managed_replacement.cpp
         src/hooks/hook_registration.cpp
 )
 add_library(il2cpp_native_bridge::il2cpp_native_bridge ALIAS il2cpp_native_bridge)
+
+# 门面消费目标：只转发核心库，保持「门面 → 核心」单向依赖。
+# 门面实现随核心静态库编译，消费者不需要额外链接项；Gum 头不经过该目标暴露。
+add_library(il2cpp_native_bridge_perform INTERFACE)
+add_library(il2cpp_native_bridge::perform ALIAS il2cpp_native_bridge_perform)
+target_link_libraries(il2cpp_native_bridge_perform INTERFACE il2cpp_native_bridge)
 
 target_compile_features(il2cpp_native_bridge PUBLIC cxx_std_20)
 il2cpp_native_bridge_apply_cxx_standard(il2cpp_native_bridge)
@@ -77,9 +88,25 @@ target_include_directories(il2cpp_native_bridge
 set_target_properties(il2cpp_native_bridge PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(il2cpp_native_bridge PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
 
+# managed replacement 的 provider 二选一：真实 Gum 或 OFF 构建的 unavailable 实现。
+# 两者提供同一组符号，测试目标可以自带真实 provider（配合 Gum 替身）覆盖它。
 if (IL2CPP_NATIVE_BRIDGE_BUILD_FRIDA_GUM_BACKEND)
     include(cmake/FridaGum.cmake)
     il2cpp_native_bridge_add_frida_gum_backend()
+    target_sources(il2cpp_native_bridge PRIVATE src/hooks/managed_gum_provider.cpp)
+    target_link_libraries(il2cpp_native_bridge PUBLIC il2cpp_native_bridge_frida_gum_upstream)
+else ()
+    target_sources(il2cpp_native_bridge PRIVATE src/hooks/unavailable_gum_provider.cpp)
+endif ()
+
+# T030 原生验收：只在 Android + 真实 Gum 后端时编译。主机与 OFF 构建不产出该目标，
+# 也不注册 CTest —— Gum 运行测试必须在设备上执行，不能混进主机测试。
+if (ANDROID AND IL2CPP_NATIVE_BRIDGE_BUILD_FRIDA_GUM_BACKEND AND IL2CPP_NATIVE_BRIDGE_BUILD_TESTS)
+    add_executable(il2cpp_native_bridge_gum_acceptance tests/runtime/gum_managed_lifecycle_acceptance.cpp)
+    target_compile_features(il2cpp_native_bridge_gum_acceptance PRIVATE cxx_std_20)
+    il2cpp_native_bridge_apply_cxx_standard(il2cpp_native_bridge_gum_acceptance)
+    il2cpp_native_bridge_enable_warnings(il2cpp_native_bridge_gum_acceptance)
+    target_link_libraries(il2cpp_native_bridge_gum_acceptance PRIVATE il2cpp_native_bridge_frida_gum_upstream)
 endif ()
 
 if (IL2CPP_NATIVE_BRIDGE_INSTALL)

@@ -1,4 +1,5 @@
 #include "hook_internal.hpp"
+#include "hooks/managed_provider_internal.hpp"
 #include "metadata/metadata_internal.hpp"
 
 #include <unordered_map>
@@ -27,6 +28,16 @@ HookRegistry& registry() {
 
 } /// namespace
 
+bool legacy_hook_active(void* target) {
+    if (target == nullptr) return false;
+    auto& hooks = registry();
+    std::lock_guard registry_lock(hooks.mutex);
+    const auto active = hooks.active.find(target);
+    if (active == hooks.active.end()) return false;
+    const auto state = active->second.lock();
+    return state != nullptr && !state->removed.load(std::memory_order_acquire);
+}
+
 void* hook_original(const void* state) noexcept {
     if (state == nullptr) return nullptr;
     return static_cast<const HookState*>(state)->original.load(std::memory_order_acquire);
@@ -43,6 +54,12 @@ Result<std::shared_ptr<HookState>> install_hook(const MethodHandle& method,
     }
     auto entry = resolve_entry_point(method);
     if (!entry) return Result<std::shared_ptr<HookState>>::failure(entry.error());
+
+    /// 新门面的 managed 替换与旧 Hook 共用地址排他；不夺取彼此的所有权。
+    if (managed_replacement_active(entry.value())) {
+        return Result<std::shared_ptr<HookState>>::failure(make_error(ErrorCode::owner_conflict,
+            "method already has an active managed replacement"));
+    }
     auto& hooks = registry();
     std::lock_guard registry_lock(hooks.mutex);
     if (const auto active = hooks.active.find(entry.value()); active != hooks.active.end()) {

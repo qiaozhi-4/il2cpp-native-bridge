@@ -43,7 +43,8 @@ class MatrixRunnerTest(unittest.TestCase):
     def test_runtime_result_format_requires_every_check(self) -> None:
         entry = self.matrix["entries"][0]
         result = common.make_run_record(entry, "linux-x64")
-        payload = {"checks": {name: {"status": "passed"} for name in common.CHECKS[:-1]}}
+        omitted = "set_timeScale_find_call_hook_remove_restore"
+        payload = {"checks": {name: {"status": "passed"} for name in common.CHECKS if name != omitted}}
         merged = common.merge_runtime_result(result, payload)
         self.assertEqual(merged["status"], "failed")
         self.assertEqual(
@@ -58,6 +59,43 @@ class MatrixRunnerTest(unittest.TestCase):
 
     def test_missing_unity_license_is_detected_as_environment_blocker(self) -> None:
         self.assertTrue(common.unity_license_missing("No valid Unity Editor license found."))
+
+    def test_facade_check_cannot_be_skipped(self) -> None:
+        checks = {name: {"status": "passed"} for name in common.CHECKS}
+        checks["facade_managed_replacement"] = {"status": "not_applicable"}
+        self.assertEqual(common.overall_status(checks), "failed")
+
+    def test_legacy_hook_check_may_be_not_applicable_on_host(self) -> None:
+        checks = {name: {"status": "passed"} for name in common.CHECKS}
+        checks["set_timeScale_find_call_hook_remove_restore"] = {"status": "not_applicable"}
+        self.assertEqual(common.overall_status(checks), "passed")
+
+    def test_runtime_result_keeps_experiment_label(self) -> None:
+        entry = next(item for item in self.matrix["entries"]
+                     if "android-arm64-v8a" in item.get("targets", []))
+        result = common.make_run_record(entry, "android-arm64-v8a")
+        payload = {"experiment": "runtime-acceptance",
+                   "checks": {name: {"status": "passed"} for name in common.CHECKS}}
+        merged = common.merge_runtime_result(result, payload)
+        self.assertEqual(merged["experiment"], "runtime-acceptance")
+
+    def test_redaction_removes_device_paths_and_addresses(self) -> None:
+        text = common.redact("/data/app/x/lib.so crashed at 0x7f00dead on ABC123", "ABC123")
+        self.assertNotIn("ABC123", text)
+        self.assertNotIn("0x7f00dead", text)
+        self.assertNotIn("/data/app/x", text)
+
+    def test_summary_reports_failed_and_skipped_checks(self) -> None:
+        import summarize_matrix
+
+        checks = {name: {"status": "passed"} for name in common.CHECKS}
+        checks["class_lookup"] = {"status": "failed"}
+        checks["method_lookup"] = {"status": "blocked"}
+        run = {"target": "android-arm64-v8a", "unityVersion": "6000.3.10f1",
+               "status": "failed", "checks": checks, "experiment": "runtime-acceptance"}
+        summary = summarize_matrix.summarize({"android-arm64-v8a": [run]})
+        self.assertEqual(summary["android-arm64-v8a"]["failedChecks"], {"class_lookup": 1})
+        self.assertEqual(summary["android-arm64-v8a"]["experiments"], {"runtime-acceptance": 1})
         self.assertTrue(common.unity_license_missing("License is not active (com.unity.editor.headless)."))
         self.assertFalse(common.unity_license_missing("Android player build failed: compiler error"))
 

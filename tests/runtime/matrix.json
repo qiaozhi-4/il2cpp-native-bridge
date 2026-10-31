@@ -72,6 +72,13 @@
       "source": "gamebox-mrfz-runtime"
     },
     {
+      "unityVersion": "2022.3.62f2",
+      "targets": ["android-arm64-v8a"],
+      "evidenceLabel": "gamebox-wdyz",
+      "androidArm64": true,
+      "source": "gamebox-wdyz-runtime"
+    },
+    {
       "unityVersion": "2023.2.20f1",
       "targets": ["linux-x64", "android-arm64-v8a"],
       "evidenceLabel": "representative",

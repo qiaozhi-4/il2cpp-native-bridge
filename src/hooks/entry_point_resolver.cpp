@@ -35,20 +35,28 @@ bool executable_address(void* address) {
 
 } /// namespace
 
+Result<void*> resolve_entry_point_address(const Il2CppMethodInfo* method) {
+    if (method == nullptr) {
+        return Result<void*>::failure(make_error(ErrorCode::invalid_argument, "MethodInfo is missing"));
+    }
+    // IL2CPP has no public method-pointer getter; methodPointer is the first MethodInfo field.
+    void* address = nullptr;
+    std::memcpy(&address, method, sizeof(address));
+    if (!executable_address(address)) {
+        return Result<void*>::failure(make_error(ErrorCode::entry_point_unavailable,
+            address == nullptr ? "MethodInfo.methodPointer is null"
+                               : "MethodInfo.methodPointer is not in an executable mapping"));
+    }
+    return Result<void*>::success(address);
+}
+
 Result<void*> resolve_entry_point(const MethodHandle& method) {
     auto valid = validate_method_handle(method);
     if (!valid) return Result<void*>::failure(valid.error());
     auto attached = acquire_thread(method.declaring_class.context);
     if (!attached) return Result<void*>::failure(attached.error());
 
-    // IL2CPP has no public method-pointer getter; methodPointer is the first MethodInfo field.
-    void* address = nullptr;
-    std::memcpy(&address, method.native, sizeof(address));
-    if (!executable_address(address)) {
-        return Result<void*>::failure(make_error(ErrorCode::entry_point_unavailable,
-            "MethodInfo.methodPointer is null or not executable"));
-    }
-    return Result<void*>::success(address);
+    return resolve_entry_point_address(method.native);
 }
 
 } /// namespace il2cpp_native_bridge::detail

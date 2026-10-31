@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import os
 import platform
 import shutil
@@ -23,7 +24,8 @@ BLOCK_REASONS = (
     "toolchain_missing",     # adb / cmake 等构建工具缺失，或原生插件构建前置条件不满足
     "host_platform_mismatch",# 主机端 fixture 要求 Linux x86_64，当前主机不匹配
 )
-CHECKS = (
+# 旧接口 smoke 的检查项；新门面检查项单列，便于汇总时区分「旧回归」与「新能力」。
+LEGACY_CHECKS = (
     "runtime_discovery",
     "class_lookup",
     "method_lookup",
@@ -32,6 +34,16 @@ CHECKS = (
     "method_invoke",
     "set_timeScale_find_call_hook_remove_restore",
 )
+FACADE_CHECKS = (
+    "facade_dual_assembly",
+    "facade_invoke_slots",
+    "facade_instance_slot",
+    "facade_managed_replacement",
+    "facade_async_perform",
+)
+CHECKS = LEGACY_CHECKS + FACADE_CHECKS
+# 只有旧 Hook smoke 允许在主机上以 not_applicable 存在；新门面检查不允许跳过。
+NOT_APPLICABLE_ALLOWED = {"set_timeScale_find_call_hook_remove_restore"}
 RESULT_MARKER = "IL2CPP_NATIVE_BRIDGE_RESULT:"
 RESULT_STATUSES = {"passed", "failed", "blocked", "not_applicable", "not_run"}
 
@@ -94,6 +106,10 @@ def overall_status(checks: dict[str, dict[str, str]]) -> str:
     unknown = statuses - RESULT_STATUSES
     if unknown:
         return "failed"
+    # 新门面检查不允许「跳过」：not_applicable 只对旧 Hook smoke 合法。
+    for name, item in checks.items():
+        if item.get("status") == "not_applicable" and name not in NOT_APPLICABLE_ALLOWED:
+            return "failed"
     if "failed" in statuses:
         return "failed"
     if "blocked" in statuses:
@@ -124,8 +140,23 @@ def merge_runtime_result(result: dict[str, Any], payload: dict[str, Any]) -> dic
     result["checks"] = merged
     result["status"] = overall_status(merged)
     result["runtimeUnityVersion"] = payload.get("unityVersion") or "unreported"
+    result["experiment"] = str(payload.get("experiment") or "unspecified")
     result.pop("details", None)
     return result
+
+
+_ADDRESS = re.compile(r"0x[0-9a-fA-F]{4,}")
+_ABSOLUTE_PATH = re.compile(r"(/[\w.\-]+){3,}")
+
+
+def redact(text: str, device: str | None = None) -> str:
+    """去掉设备标识、绝对路径与裸指针，避免证据里带出环境细节。"""
+    if not text:
+        return text
+    cleaned = text.replace(device, "<device>") if device else text
+    cleaned = _ADDRESS.sub("<address>", cleaned)
+    cleaned = _ABSOLUTE_PATH.sub("<path>", cleaned)
+    return cleaned
 
 
 def make_run_record(entry: dict[str, Any], target: str) -> dict[str, Any]:

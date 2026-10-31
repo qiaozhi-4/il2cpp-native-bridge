@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cstring>
 #include <new>
+#include <set>
 
 namespace {
 Il2CppThread fake_thread;
@@ -12,10 +13,16 @@ thread_local Il2CppThread* current_thread{};
 fake_il2cpp::Fixture* active_fixture{};
 /// 会被多线程测试并发递增，因此用原子类型。
 std::atomic<std::size_t> class_lookup_calls{};
+/// lookup_symbol 需要屏蔽的符号，模拟部分导出缺失的运行时。
+std::set<std::string> disabled_symbols;
 
 Il2CppDomain* domain_get() { return active_fixture == nullptr ? nullptr : active_fixture->domain(); }
 const Il2CppAssembly** domain_get_assemblies(const Il2CppDomain* domain, std::size_t* count) {
     if (domain == nullptr || count == nullptr) return nullptr;
+    if (active_fixture != nullptr && !active_fixture->assemblies_available()) {
+        *count = 0;
+        return nullptr;
+    }
     *count = domain->assemblies.size();
     return domain->assemblies.empty() ? nullptr : const_cast<const Il2CppAssembly**>(domain->assemblies.data());
 }
@@ -82,9 +89,36 @@ Il2CppObject* runtime_invoke(const Il2CppMethodInfo* method, void* instance, voi
     return method->invoke(static_cast<Il2CppObject*>(instance), arguments, exception);
 }
 void* object_unbox(Il2CppObject* object) { return object == nullptr ? nullptr : object->bytes.data(); }
+Il2CppClass* object_get_class(Il2CppObject* object) { return object == nullptr ? nullptr : object->klass; }
 Il2CppThread* thread_current() { return current_thread; }
 Il2CppThread* thread_attach(Il2CppDomain*) { current_thread = &fake_thread; return current_thread; }
 void thread_detach(Il2CppThread* thread) { if (thread == current_thread) current_thread = nullptr; }
+bool type_is_byref(const Il2CppType* type) { return type != nullptr && type->name.ends_with('&'); }
+Il2CppClass* class_from_type(const Il2CppType* type) {
+    if (type == nullptr || active_fixture == nullptr) return nullptr;
+    return active_fixture->find_class(type->name);
+}
+bool class_is_valuetype(Il2CppClass* klass) { return klass != nullptr && klass->is_value_type; }
+bool class_is_assignable_from(Il2CppClass* klass, Il2CppClass* other) {
+    if (klass == nullptr || other == nullptr) return false;
+    for (auto* current = other; current != nullptr; current = current->base) {
+        if (current == klass) return true;
+    }
+    return false;
+}
+bool method_is_generic(const Il2CppMethodInfo* method) { return method != nullptr && method->is_generic; }
+bool method_is_inflated(const Il2CppMethodInfo* method) { return method != nullptr && method->is_inflated; }
+std::int32_t string_length(Il2CppString* string) {
+    return string == nullptr ? 0 : static_cast<std::int32_t>(string->text.size());
+}
+const std::uint16_t* string_chars(Il2CppString* string) {
+    if (string == nullptr || string->text.empty()) return nullptr;
+    return reinterpret_cast<const std::uint16_t*>(string->text.data());
+}
+const Il2CppImage* get_corlib() {
+    if (active_fixture == nullptr || !active_fixture->corlib_available()) return nullptr;
+    return active_fixture->corlib_image();
+}
 
 } /// namespace
 
@@ -103,6 +137,18 @@ Fixture::Fixture() {
             auto* box = make_object(nullptr);
             std::memcpy(box->bytes.data(), &time_scale_, sizeof(time_scale_));
             return box;
+        });
+
+    /// profile bootstrap 的版本来源；默认报告 Unity 6000.3。
+    application_ = add_class("UnityEngine.CoreModule", "UnityEngine", "Application");
+    unity_version_method_ = add_method(application_, "get_unityVersion", "System.String", {}, true,
+        [this](Il2CppObject*, void**, Il2CppObject** exception) -> Il2CppObject* {
+            if (unity_version_exception_) {
+                if (exception != nullptr) *exception = make_object(nullptr);
+                return nullptr;
+            }
+            if (!unity_version_.has_value()) return nullptr;
+            return make_string(*unity_version_);
         });
 }
 
@@ -135,6 +181,16 @@ il2cpp_native_bridge::detail::Api Fixture::api() const {
     result.thread_current = thread_current;
     result.thread_attach = thread_attach;
     result.thread_detach = thread_detach;
+    result.get_corlib = get_corlib;
+    result.type_is_byref = type_is_byref;
+    result.object_get_class = object_get_class;
+    result.class_from_type = class_from_type;
+    result.class_is_valuetype = class_is_valuetype;
+    result.class_is_assignable_from = class_is_assignable_from;
+    result.method_is_generic = method_is_generic;
+    result.method_is_inflated = method_is_inflated;
+    result.string_length = string_length;
+    result.string_chars = string_chars;
     result.free_memory = [](void* pointer) { delete[] static_cast<char*>(pointer); };
     return result;
 }
@@ -155,12 +211,20 @@ Il2CppClass* Fixture::add_class(std::string assembly_name, std::string name_spac
     return klass;
 }
 
+Il2CppAssembly* Fixture::add_duplicate_assembly(std::string image_name) {
+    images_.push_back(Il2CppImage{std::move(image_name), {}});
+    assemblies_.push_back(Il2CppAssembly{&images_.back()});
+    domain_.assemblies.push_back(&assemblies_.back());
+    return &assemblies_.back();
+}
+
 Il2CppMethodInfo* Fixture::add_method(Il2CppClass* klass, std::string name, std::string return_type,
                                      std::vector<std::string> parameters, bool is_static,
-                                     std::function<Il2CppObject*(Il2CppObject*, void**, Il2CppObject**)> invoke) {
+                                     std::function<Il2CppObject*(Il2CppObject*, void**, Il2CppObject**)> invoke,
+                                     bool is_generic) {
     std::vector<Il2CppType> types;
     for (auto& parameter : parameters) types.push_back(Il2CppType{std::move(parameter)});
-    methods_.push_back(Il2CppMethodInfo{std::move(name), Il2CppType{std::move(return_type)}, std::move(types), is_static, std::move(invoke)});
+    methods_.push_back(Il2CppMethodInfo{nullptr, std::move(name), Il2CppType{std::move(return_type)}, std::move(types), is_static, std::move(invoke), is_generic, false});
     auto* method = &methods_.back();
     klass->methods.push_back(method);
     return method;
@@ -181,6 +245,52 @@ Il2CppObject* Fixture::make_object(Il2CppClass* klass) {
     return &objects_.back();
 }
 
+void Fixture::set_method_entry(Il2CppMethodInfo* method, void* entry) {
+    if (method != nullptr) method->method_pointer = entry;
+}
+
+Il2CppObject* Fixture::make_string(std::u16string text) {
+    auto* object = make_object(nullptr);
+    object->text = std::move(text);
+    return object;
+}
+
+void Fixture::set_unity_version(std::optional<std::u16string> version) { unity_version_ = std::move(version); }
+
+void Fixture::set_unity_version_exception(bool raised) { unity_version_exception_ = raised; }
+
+void Fixture::remove_unity_version_method() {
+    if (application_ == nullptr || unity_version_method_ == nullptr) return;
+    auto& methods = application_->methods;
+    methods.erase(std::remove(methods.begin(), methods.end(), unity_version_method_), methods.end());
+    unity_version_method_ = nullptr;
+}
+
+Il2CppObject* Fixture::box(const void* data, std::size_t size) {
+    auto* object = make_object(nullptr);
+    if (data != nullptr && size <= object->bytes.size()) std::memcpy(object->bytes.data(), data, size);
+    return object;
+}
+
+void Fixture::add_corlib_types() {
+    auto* object = add_class("mscorlib.dll", "System", "Object");
+    auto* string_type = add_class("mscorlib.dll", "System", "String");
+    string_type->base = object;
+    const char* value_types[] = {"Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
+                                 "Int64", "UInt64", "Single", "Double", "Void"};
+    for (const char* name : value_types) add_class("mscorlib.dll", "System", name)->is_value_type = true;
+}
+
+Il2CppClass* Fixture::find_class(std::string_view full_name) {
+    const auto dot = full_name.rfind('.');
+    const std::string_view name_space = dot == std::string_view::npos ? std::string_view{} : full_name.substr(0, dot);
+    const std::string_view name = dot == std::string_view::npos ? full_name : full_name.substr(dot + 1);
+    for (auto& klass : classes_) {
+        if (klass.name == name && klass.name_space == name_space) return &klass;
+    }
+    return nullptr;
+}
+
 int Fixture::instance_count(const Il2CppObject* object, std::size_t offset) const {
     int value = 0;
     std::memcpy(&value, object->bytes.data() + offset, sizeof(value));
@@ -190,5 +300,26 @@ int Fixture::instance_count(const Il2CppObject* object, std::size_t offset) cons
 std::size_t Fixture::class_lookup_count() const { return class_lookup_calls.load(std::memory_order_relaxed); }
 
 void Fixture::reset_class_lookup_count() { class_lookup_calls.store(0, std::memory_order_relaxed); }
+
+void* lookup_symbol(void*, const char* symbol_name) {
+    if (active_fixture == nullptr || symbol_name == nullptr) return nullptr;
+    if (disabled_symbols.contains(symbol_name)) return nullptr;
+    const auto api = active_fixture->api();
+
+#define IL2CPP_MATCH_REQUIRED(member, symbol) \
+    if (std::strcmp(symbol_name, symbol) == 0) return reinterpret_cast<void*>(api.member);
+#define IL2CPP_MATCH_OPTIONAL(member, symbol, group) \
+    if (std::strcmp(symbol_name, symbol) == 0) return reinterpret_cast<void*>(api.member);
+
+    IL2CPP_NATIVE_BRIDGE_EXPORT_LIST(IL2CPP_MATCH_REQUIRED, IL2CPP_MATCH_OPTIONAL)
+
+#undef IL2CPP_MATCH_REQUIRED
+#undef IL2CPP_MATCH_OPTIONAL
+    return nullptr;
+}
+
+void disable_symbol(std::string name) { disabled_symbols.insert(std::move(name)); }
+
+void clear_disabled_symbols() { disabled_symbols.clear(); }
 
 } /// namespace fake_il2cpp

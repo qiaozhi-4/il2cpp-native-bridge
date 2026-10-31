@@ -64,10 +64,22 @@ def summarize(grouped: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     for target, runs in sorted(grouped.items()):
         statuses = Counter(run.get("status", "unknown") for run in runs)
         reasons = Counter(reason_of(run) for run in runs if run.get("status") == "blocked")
+        check_failures = Counter()
+        skipped_checks = Counter()
+        for run in runs:
+            for name, item in (run.get("checks") or {}).items():
+                status = item.get("status")
+                if status == "failed":
+                    check_failures[name] += 1
+                elif status in ("not_applicable", "not_run"):
+                    skipped_checks[name] += 1
         summary[target] = {
             "total": len(runs),
             "statuses": {status: statuses.get(status, 0) for status in STATUSES if statuses.get(status, 0)},
             "blockedReasons": dict(sorted(reasons.items())),
+            "failedChecks": dict(sorted(check_failures.items())),
+            "skippedChecks": dict(sorted(skipped_checks.items())),
+            "experiments": dict(sorted(Counter(run.get("experiment", "unspecified") for run in runs).items())),
             "versions": [
                 {
                     "unityVersion": run["unityVersion"],

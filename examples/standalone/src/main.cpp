@@ -1,15 +1,17 @@
-#include "il2cpp_native_bridge/bridge.hpp"
-#include "il2cpp_native_bridge/frida_gum_hook_backend.hpp"
+// 最小消费者：只用公开门面，不手写初始化、线程附加、backend 或 HookSlot。
+//
+// 演示「一次 perform + 完整对象链 + 一次替换」：
+//   Il2Cpp::perform → domain → assembly → image → klass → method → invoke / implementation / revert
+#include "il2cpp_native_bridge/il2cpp.hpp"
 
-#include <utility>
+#include <cstdio>
 
 namespace {
 
-using TimeScaleFunction = void (*)(float);
-TimeScaleFunction original_time_scale{};
-
-void on_set_time_scale(float value) {
-    if (original_time_scale != nullptr) original_time_scale(value);
+/// 替换回调：把时间缩放放大一倍后交给原实现。
+/// 必须是普通函数（无捕获），这样安装时不需要额外的上下文对象。
+void on_set_time_scale(il2cpp_native_bridge::ReplacementCall<void, float>& call, float value) {
+    call.original(value * 2.0f);
 }
 
 } /// namespace
@@ -17,34 +19,39 @@ void on_set_time_scale(float value) {
 int main() {
     using namespace il2cpp_native_bridge;
 
-    auto runtime = Runtime::current();
-    auto attachment = ThreadAttachment::attach(runtime);
-    if (!attachment) return 1;
+    const auto submitted = Il2Cpp::perform(
+            [] {
+                auto time = Il2Cpp::domain()
+                                    .assembly("UnityEngine.CoreModule")
+                                    .image()
+                                    .klass("UnityEngine.Time");
+                auto setter = time.method("set_timeScale", 1);
+                auto getter = time.method("get_timeScale", 0);
 
-    auto time = runtime.klass("UnityEngine.Time");
-    auto setter = time.method<void, float>("set_timeScale");
-    auto getter = time.method<float>("get_timeScale");
-    if (!setter.found() || !getter.found()) return 2;
+                setter.invoke<void, float>(0.5f);
+                const float observed = getter.invoke<float>();
+                std::printf("timeScale=%.3f\n", static_cast<double>(observed));
 
-    auto initial_scale = getter.invoke();
-    if (!initial_scale) return 3;
+                /// OFF 构建没有 Gum 后端：查询与调用照常，替换按 missing_api 拒绝。
+                try {
+                    setter.implementation(&on_set_time_scale);
+                } catch (const BridgeError& error) {
+                    if (error.error().code == ErrorCode::missing_api) {
+                        std::fputs("managed replacement is unavailable in this build\n", stdout);
+                        return;
+                    }
+                    throw;
+                }
 
-    auto backend = make_frida_gum_hook_backend();
-    auto hook_result = setter.hook(std::move(backend), on_set_time_scale);
-    if (!hook_result) return 4;
-    auto hook = std::move(hook_result.value());
-    original_time_scale = hook.original();
-    if (original_time_scale == nullptr) return 5;
+                setter.invoke<void, float>(0.5f);
+                setter.revert();
+                setter.invoke<void, float>(observed);
+            },
+            [](Result<void> result) {
+                if (!result) {
+                    std::fprintf(stderr, "perform failed: %s\n", result.error().message.c_str());
+                }
+            });
 
-    auto changed = setter.invoke(0.5f);
-    auto observed = getter.invoke();
-    if (!changed || !observed || observed.value() != 0.5f) return 6;
-
-    auto removed = hook.remove();
-    original_time_scale = nullptr;
-    if (!removed) return 7;
-
-    auto restored = setter.invoke(initial_scale.value());
-    if (!restored) return 8;
-    return 0;
+    return submitted ? 0 : 1;
 }

@@ -96,3 +96,56 @@ void set_time_scale(float value) {
 如果目标运行时缺少一个已知 IL2CPP 导出，可在首次调用 `Runtime::current()` 前调用 `Runtime::set_export_override("il2cpp_symbol", address)` 提供回退地址。只有模块符号查找失败时才使用该地址；运行时进入 `ready` 后不再接受配置。调用方需要确认回退地址属于当前进程中兼容的 IL2CPP 实现。
 
 完整的 `set_timeScale` 调用流程见 [`examples/standalone`](../examples/standalone)。
+
+## 新门面（`il2cpp_native_bridge/il2cpp.hpp`）
+
+新门面把「等待运行时、附加线程、选后端、持有 Hook」这些步骤收进库内部，调用方只写一次 `perform`：
+
+```cpp
+#include "il2cpp_native_bridge/il2cpp.hpp"
+
+using namespace il2cpp_native_bridge;
+
+// 替换回调必须是普通函数（无捕获）。
+void on_set_time_scale(ReplacementCall<void, float>& call, float value) {
+    call.original(value * 2.0f);
+}
+
+Il2Cpp::perform([] {
+    auto time = Il2Cpp::domain()
+                        .assembly("UnityEngine.CoreModule")
+                        .image()
+                        .klass("UnityEngine.Time");
+
+    time.method("setTimeScale", 1).invoke<void, float>(0.5f);
+    float observed = time.method("getTimeScale", 0).invoke<float>();
+
+    auto setter = time.method("setTimeScale", 1);
+    setter.implementation(&on_set_time_scale);   // 安装托管方法替换
+    setter.revert();                             // 恢复原实现
+});
+```
+
+要点：
+
+- **作用域**：`Il2Cpp::perform` 的动作在库的协调线程上执行，动作内自动处于访问作用域；
+  替换回调内同样自动建立作用域，可以直接继续调用 `Il2Cpp::domain()`。
+- **异步**：`perform` 只表示「提交被接受」，完成通过 completion 回调送达；不要在 Unity 主线程同步等待。
+- **对象链**：`domain → assembly → image → klass → method`，类解析限定在选定 image 内，
+  因此同名类在不同程序集里不会互相污染。`method(name, arity)` 返回候选集，签名不唯一时用 `overload(...)` 或 `typed<R, Args...>()` 收窄。
+- **错误**：第一个失败环节抛 `BridgeError`，动作边界转成 `Result<void>`；诊断行格式为
+  `[il2cpp-native-bridge] stage=… path=… category=… message=…`。
+- **不支持即拒绝**：byref/ref/out、泛型方法、无类型名映射的 C++ 类型在绑定期拒绝；
+  缺少必要 IL2CPP 导出时报 `missing_api`，不会退回猜测。
+
+### 部署要求
+
+`implementation` 首次调用时会读取 `UnityEngine.Application.get_unityVersion` 来选择 ABI profile。
+IL2CPP 只为**可达**方法生成代码，因此宿主必须保留该 getter（托管侧引用一次，或在 `link.xml` 里保留），
+否则替换会以 `not_found` 被拒绝，而查询与 `invoke` 不受影响。
+
+### 支持范围
+
+profile 按 family 与版本两级判定：`modern-static`（2018.3 起）与 `legacy-static-slot`（5.3–2018.2）。
+只有列在 `kVerifiedVersions` 中、且通过运行时验收的版本是 `approved`；同 family 的其他版本是 `candidate`
+（可安装但不声称支持）；legacy family 无生成源码证据，保持 `rejected`。
