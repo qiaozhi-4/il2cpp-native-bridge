@@ -1,7 +1,7 @@
 #pragma once
 
-// 与固定 Frida Gum 17.23.3 保持同形的替身声明；只覆盖新 provider 用到的部分。
-// 真实 devkit 的同名符号见 third_party/frida-gum/17.23.3/android-arm64/frida-gum.h。
+/// 与固定 Frida Gum 17.23.3 保持同形的替身声明；只覆盖新 provider 用到的部分。
+/// 真实 devkit 的同名符号见 third_party/frida-gum/17.23.3/android-arm64/frida-gum.h。
 
 #ifdef __cplusplus
 extern "C" {

@@ -41,7 +41,7 @@ Result<void> run_when_ready(const std::shared_ptr<detail::RuntimeContext>& conte
                 try {
                     options.on_timeout(snapshot_without_refresh(context), elapsed);
                 } catch (...) {
-                    // A diagnostic callback must not cancel waiting for IL2CPP initialization.
+                    /// 诊断回调不能取消对 IL2CPP 初始化的等待。
                 }
             }
         }
@@ -64,7 +64,7 @@ Result<void> run_action_safely(const std::shared_ptr<detail::RuntimeContext>& co
     }
 }
 
-} // namespace
+} /// namespace
 
 Result<void> Runtime::perform_when_ready(const std::function<Result<void>()>& action,
                                         std::function<void(Result<void>)> completion,
@@ -87,7 +87,7 @@ Result<void> Runtime::perform_when_ready(const std::function<Result<void>()>& ac
             try {
                 completion(std::move(result));
             } catch (...) {
-                // Completion runs on a detached worker and must not escape the thread entry point.
+                /// 完成回调运行在分离的工作线程，异常不能越出线程入口。
             }
         }).detach();
     } catch (const std::exception& exception) {
@@ -98,4 +98,4 @@ Result<void> Runtime::perform_when_ready(const std::function<Result<void>()>& ac
     return Result<void>::success();
 }
 
-} // namespace INB
+} /// namespace INB

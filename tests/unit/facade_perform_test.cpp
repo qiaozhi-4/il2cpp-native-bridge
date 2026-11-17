@@ -282,7 +282,7 @@ void run_facade_perform_tests() {
                     return Result<void>::failure(make_error(ErrorCode::invocation_failed, "boom"));
                 },
                 [&](Result<void> result) {
-                    // 先写结果再发布完成计数，避免调用线程看到完成却读到旧结果。
+                    /// 先写结果再发布完成计数，避免调用线程看到完成却读到旧结果。
                     if (!result) seen = result.error().code;
                     completions.fetch_add(1);
                 });
@@ -301,7 +301,7 @@ void run_facade_perform_tests() {
                     throw std::runtime_error("action exploded");
                 },
                 [&](Result<void> result) {
-                    // 先写结果再发布完成计数，避免调用线程看到完成却读到旧结果。
+                    /// 先写结果再发布完成计数，避免调用线程看到完成却读到旧结果。
                     if (!result) seen = result.error().code;
                     completions.fetch_add(1);
                 });

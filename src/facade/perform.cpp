@@ -82,7 +82,7 @@ void report_diagnostic(ErrorStage stage,
         try {
             sink(line);
         } catch (...) {
-            // 诊断接收器失败不能改变请求结果。
+            /// 诊断接收器失败不能改变请求结果。
         }
         return;
     }
@@ -157,7 +157,7 @@ AccessScope::AccessScope(std::shared_ptr<RuntimeContext> context) : context_(std
 
 AccessScope::~AccessScope() {
     tls_scope_top = previous_;
-    // lease_ 析构时按 owns_attachment 只分离本次取得的线程。
+    /// lease_ 析构时按 owns_attachment 只分离本次取得的线程。
 }
 
 AccessScope* current_access_scope() noexcept { return tls_scope_top; }
@@ -235,7 +235,7 @@ void FacadeExecutor::stop() {
     }
     wake_.notify_all();
     if (!worker_.joinable()) return;
-    // 协调线程自己触发停机时不能自 join。
+    /// 协调线程自己触发停机时不能自 join。
     if (std::this_thread::get_id() == worker_.get_id()) {
         worker_.detach();
         return;
@@ -250,7 +250,7 @@ void FacadeExecutor::run() {
             std::unique_lock lock(mutex_);
             wake_.wait(lock, [this] { return stopping_ || !queue_.empty(); });
             if (stopping_) return;
-            // 等待就绪期间请求仍占用队列名额，出队即代表开始执行。
+            /// 等待就绪期间请求仍占用队列名额，出队即代表开始执行。
             request = queue_.front();
         }
 
@@ -289,7 +289,7 @@ void FacadeExecutor::run_action(PerformRequest& request, const ReadyView& view) 
 }
 
 void FacadeExecutor::finish(PerformRequest& request, const Result<void>& outcome) {
-    // 结果确定后立即释放 action/options 捕获；completion 本身不在作用域内执行。
+    /// 结果确定后立即释放 action/options 捕获；completion 本身不在作用域内执行。
     request.action = nullptr;
     request.on_wait = nullptr;
     if (!outcome) {
@@ -302,7 +302,7 @@ void FacadeExecutor::finish(PerformRequest& request, const Result<void>& outcome
         try {
             completion(outcome);
         } catch (...) {
-            // 完成回调失败只报告，不重跑 action，也不产生第二次 completion。
+            /// 完成回调失败只报告，不重跑 action，也不产生第二次 completion。
             report_diagnostic(ErrorStage::completion, {}, "callback", "the completion callback threw");
         }
     }
@@ -321,7 +321,7 @@ Result<ReadyView> FacadeExecutor::wait_for_core_ready(PerformRequest& request) {
             auto view = core_ready_view(context);
             if (view) return view;
         } else if (refreshed.error().code != ErrorCode::runtime_not_ready) {
-            // 核心能力不可继续：请求失败一次，不执行 action。
+            /// 核心能力不可继续：请求失败一次，不执行 action。
             return Result<ReadyView>::failure(refreshed.error());
         }
 

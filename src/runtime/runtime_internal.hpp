@@ -78,18 +78,26 @@ struct ThreadLease {
     ~ThreadLease();
 };
 
+/// 定位并持有已加载的 IL2CPP 模块，返回可供 dlsym 的句柄。
 void* find_loaded_runtime_module();
+/// 关闭由 find_loaded_runtime_module 取得的模块句柄。
 void close_runtime_module(void* module);
+/// 在模块中按名查找导出符号。
 void* lookup_runtime_symbol(void* module, const char* name);
 
+/// 刷新 context 的旧门面就绪投影。
 Result<void> refresh_context(const std::shared_ptr<RuntimeContext>& context);
 /// 建立新门面的 core 就绪投影；不要求 invoke/字段等非核心导出。
 Result<void> refresh_core(const std::shared_ptr<RuntimeContext>& context);
+/// 附加当前线程到 runtime；已附加时不重复附加。
 Result<ThreadLease> acquire_thread(const std::shared_ptr<RuntimeContext>& context);
 /// 使用已校验的就绪视图附加线程；不再重复执行 strict-ready 判定。
 Result<ThreadLease> acquire_thread(const std::shared_ptr<RuntimeContext>& context, const Api& api, Il2CppDomain* domain);
+/// 要求旧门面投影处于 ready，否则返回未就绪错误。
 Result<void> require_ready(const std::shared_ptr<RuntimeContext>& context);
+/// 读取当前导出表；context 为空时返回空表。
 Api api_for(const std::shared_ptr<RuntimeContext>& context);
+/// 读取当前 runtime 代际；context 为空时返回 0。
 std::uint64_t generation_for(const std::shared_ptr<RuntimeContext>& context);
 
 /// 仅供测试：构造未就绪的 context，调用方可自行配置 module、symbol_lookup 或 injected_api。
@@ -98,9 +106,13 @@ std::shared_ptr<RuntimeContext> make_testing_context(Api api, Il2CppDomain* doma
 std::shared_ptr<RuntimeContext> make_runtime_context();
 /// 生产进程唯一的运行时 context；Runtime 与新门面共享它，以便符号解析器等配置只做一次。
 std::shared_ptr<RuntimeContext> current_runtime_context();
+/// 按 key 查元数据缓存；未命中或 context 为空时返回空指针。
 void* find_cached_metadata(const std::shared_ptr<RuntimeContext>& context, std::string_view key);
+/// 写入元数据缓存；达到上限时整体清空。
 void cache_metadata(const std::shared_ptr<RuntimeContext>& context, std::string key, void* value);
+/// 按 key 查类缓存，命中时填入 out 并返回 true。
 bool find_cached_class(const std::shared_ptr<RuntimeContext>& context, std::string_view key, ClassCacheEntry& out);
+/// 写入类缓存；达到上限时整体清空。
 void cache_class(const std::shared_ptr<RuntimeContext>& context,
                  std::string key,
                  Il2CppClass* native,

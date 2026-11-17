@@ -125,7 +125,9 @@ private:
 /// 诊断输出接收器；测试用它捕获默认诊断，生产不设置时写 stderr。
 using DiagnosticSink = std::function<void(std::string_view)>;
 
+/// 注册诊断输出接收器；传入空函数恢复默认 stderr 输出。
 void set_diagnostic_sink(DiagnosticSink sink);
+/// 报告一条结构化诊断；未设置接收器时写 stderr。
 void report_diagnostic(ErrorStage stage,
                        std::string_view path,
                        std::string_view category,
@@ -133,7 +135,9 @@ void report_diagnostic(ErrorStage stage,
 
 /// 生产 current context 的进程根；测试可用 install/reset 替换。
 std::shared_ptr<RuntimeContext> current_facade_context();
+/// 测试用：替换 current context，传入空指针恢复默认。
 void install_facade_context(std::shared_ptr<RuntimeContext> context);
+/// 测试用：清除替换的 current context。
 void reset_facade_context();
 
 /// 测试 Harness 使用：停机并 join 该 context 的执行器；没有执行器时为空操作。

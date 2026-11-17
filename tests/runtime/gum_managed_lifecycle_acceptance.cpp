@@ -1,8 +1,8 @@
-// 固定 Gum 17.23.3 的原生受控验收：不依赖 Unity、游戏或新门面。
-//
-// 只验证新 provider 依赖的 Gum 行为：replacement_data 分派、回调内原实现转发（TLS bypass）、
-// 安装/恢复窗口内的并发调用、回调内自恢复、flush 未确认时的重试、恢复后回收并重装。
-// 输出可脱敏的 JSON gate 报告；不包含设备标识、路径或托管内容。
+/// 固定 Gum 17.23.3 的原生受控验收：不依赖 Unity、游戏或新门面。
+///
+/// 只验证新 provider 依赖的 Gum 行为：replacement_data 分派、回调内原实现转发（TLS bypass）、
+/// 安装/恢复窗口内的并发调用、回调内自恢复、flush 未确认时的重试、恢复后回收并重装。
+/// 输出可脱敏的 JSON gate 报告；不包含设备标识、路径或托管内容。
 #include <frida-gum.h>
 
 #include <atomic>
@@ -25,7 +25,7 @@ struct Record {
     gpointer target;
 };
 
-constexpr std::uint32_t kMagic = 0x47415445;  // "GATE"
+constexpr std::uint32_t kMagic = 0x47415445;  /// "GATE" 的 ASCII 编码，用于校验记录头。
 
 __attribute__((noinline)) int target_add(int value) { return value + 1; }
 
@@ -93,7 +93,7 @@ int revert_and_flush(Record* record, int max_attempts) {
     return 0;
 }
 
-}  // namespace
+}  /// namespace
 
 int main(int argc, char** argv) {
     const char* output_path = argc > 1 ? argv[1] : nullptr;

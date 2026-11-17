@@ -230,7 +230,7 @@ void revert_replacement(const std::shared_ptr<RuntimeContext>& context,
             fail(ErrorCode::owner_conflict, ErrorStage::replacement, path,
                  "the target is owned by a legacy Hook");
         }
-        return;  // 没有 managed 项：重复恢复成功
+        return;  /// 没有 managed 项：重复恢复成功
     }
 
     if (static_cast<ReplacementState>(record->state.load()) == ReplacementState::installing) {

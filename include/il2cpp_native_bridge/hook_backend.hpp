@@ -31,6 +31,7 @@ public:
 
 namespace detail {
 struct HookState;
+/// 移除 HookState 对应的 Hook；状态为空时直接成功。
 Result<void> remove_hook(const std::shared_ptr<HookState>& state);
 }
 

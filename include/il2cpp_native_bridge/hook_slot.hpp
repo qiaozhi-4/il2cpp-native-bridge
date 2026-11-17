@@ -42,7 +42,7 @@ public:
         std::lock_guard lock(mutex_);
         if (handle_.has_value()) return Result<void>::success();
 
-        // Gum 可能在 install() 返回前启用替换函数；持锁直到原函数入口发布。
+        /// Gum 可能在 install() 返回前启用替换函数；持锁直到原函数入口发布。
         auto installed = std::forward<Installer>(installer)();
         if (!installed) return Result<void>::failure(installed.error());
 

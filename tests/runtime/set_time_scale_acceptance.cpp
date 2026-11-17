@@ -70,7 +70,7 @@ std::string expected_unity_version() {
 
 std::string build_json(const std::vector<Check>& checks, std::string_view unity_version) {
     std::ostringstream output;
-    // experiment 明确标注本次是「真实运行时验收」，与原生编译产物、候选 ABI 实验区分开。
+    /// experiment 明确标注本次是「真实运行时验收」，与原生编译产物、候选 ABI 实验区分开。
     output << "{\"schemaVersion\":1,\"experiment\":\"runtime-acceptance\",\"unityVersion\":\""
            << json_escape(unity_version) << "\",\"checks\":{";
     for (std::size_t index = 0; index < checks.size(); ++index) {

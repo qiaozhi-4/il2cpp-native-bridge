@@ -43,10 +43,15 @@ class Method;
 
 /// 托管方法替换的状态投影。
 enum class ReplacementState {
+    /// 当前没有安装替换。
     not_installed,
+    /// 替换正在安装，尚未发布为可用。
     installing,
+    /// 替换已生效，调用会进入用户回调。
     active,
+    /// 正在撤销替换。
     reverting,
+    /// 撤销已发出，仍有调用停留在旧入口，需等待排空后再试。
     draining,
 };
 
@@ -92,6 +97,7 @@ struct PerformOptions {
     std::function<void(const RuntimeSnapshot&, std::chrono::milliseconds)> on_wait;
 };
 
+/// perform 任务的完成回调，接收任务最终的结果。
 using Completion = std::function<void(Result<void>)>;
 
 namespace detail {
@@ -380,6 +386,7 @@ class Method {
 public:
     /// 按参数类型名继续缩小候选；没有候选时抛 not_found。候选不是可执行句柄。
     [[nodiscard]] Method overload(std::span<const std::string_view> parameter_types) const;
+    /// 方法短名。
     [[nodiscard]] std::string_view name() const noexcept;
 
     /// 校验一次静态签名并返回可复用的绑定；签名不支持或候选不唯一时抛 BridgeError。
@@ -390,6 +397,7 @@ public:
     template <typename Return, typename... Args>
     Return invoke(Args... args) const;
 
+    /// 在指定实例上调用；实例须与声明类兼容，方法须为非静态。
     template <typename Return, typename... Args>
     Return invoke_on(Il2CppObject* self, Args... args) const;
 
@@ -400,6 +408,7 @@ public:
     /// 恢复当前 managed target；成功后再调用走原实现。
     void revert() const;
 
+    /// 当前 managed 替换的状态。
     [[nodiscard]] ReplacementState replacement_state() const;
 
 private:

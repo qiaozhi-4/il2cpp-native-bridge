@@ -61,7 +61,7 @@ struct Api {
     const Il2CppImage* (*get_corlib)(){};
     void (*free_memory)(void*){};
 
-    // 按需类型识别、赋值兼容与字符串读取；缺失只影响依赖它的操作，不阻断就绪判断。
+    /// 按需类型识别、赋值兼容与字符串读取；缺失只影响依赖它的操作，不阻断就绪判断。
     int (*type_get_type)(const Il2CppType*){};
     bool (*type_is_byref)(const Il2CppType*){};
     Il2CppClass* (*class_from_type)(const Il2CppType*){};
@@ -153,9 +153,19 @@ struct ResolvedExports {
     }
 };
 
+/// 宿主或平台提供的导出符号查找函数。
 using SymbolLookup = void* (*)(void* module, const char* symbol_name);
+/// 判断模块是否已完成符号解析器的准备工作。
 using SymbolLookupReady = bool (*)(void* module);
 
+/**
+ * 按导出清单解析全部 IL2CPP API，并记录缺失项及其能力分组。
+ *
+ * @param module 要解析的模块句柄。
+ * @param lookup 符号查找函数，不能为空。
+ * @param missing_symbol_overrides 缺失符号的地址覆盖表。
+ * @return 解析结果；lookup 为空时所有必需导出记为缺失。
+ */
 ResolvedExports resolve_exports(void* module,
                                 SymbolLookup lookup,
                                 const std::unordered_map<std::string, void*>& missing_symbol_overrides = {});

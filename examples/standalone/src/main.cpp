@@ -1,7 +1,7 @@
-// 最小消费者：只用公开门面，不手写初始化、线程附加、backend 或 HookSlot。
-//
-// 演示「一次 perform + 完整对象链 + 一次替换」：
-//   Il2Cpp::perform → domain → assembly → image → klass → method → invoke / implementation / revert
+/// 最小消费者：只用公开门面，不手写初始化、线程附加、backend 或 HookSlot。
+///
+/// 演示「一次 perform + 完整对象链 + 一次替换」：
+///   Il2Cpp::perform → domain → assembly → image → klass → method → invoke / implementation / revert
 #include "il2cpp_native_bridge/il2cpp.hpp"
 
 #include <cstdio>

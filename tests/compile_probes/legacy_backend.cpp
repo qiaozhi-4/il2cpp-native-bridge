@@ -1,5 +1,5 @@
-// 正向探针：旧 custom backend 只实现 install/remove 两个纯虚方法。
-// 新能力若给 HookBackend 增加纯虚，这里会编译失败。
+/// 正向探针：旧 custom backend 只实现 install/remove 两个纯虚方法。
+/// 新能力若给 HookBackend 增加纯虚，这里会编译失败。
 #include "il2cpp_native_bridge/hook_backend.hpp"
 
 #include <memory>

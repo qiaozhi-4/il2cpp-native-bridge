@@ -1,5 +1,5 @@
-// OFF 构建（不带 Frida Gum 后端）的独立消费者：查询与调用必须照常工作，
-// 替换必须按 missing_api 失败，而不是在链接期出现未定义符号。
+/// OFF 构建（不带 Frida Gum 后端）的独立消费者：查询与调用必须照常工作，
+/// 替换必须按 missing_api 失败，而不是在链接期出现未定义符号。
 #include "../runtime/fake_il2cpp.hpp"
 #include "../test_support.hpp"
 #include "facade/facade_internal.hpp"

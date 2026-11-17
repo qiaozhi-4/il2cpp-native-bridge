@@ -39,7 +39,7 @@ Result<void*> resolve_entry_point_address(const Il2CppMethodInfo* method) {
     if (method == nullptr) {
         return Result<void*>::failure(make_error(ErrorCode::invalid_argument, "MethodInfo is missing"));
     }
-    // IL2CPP has no public method-pointer getter; methodPointer is the first MethodInfo field.
+    /// IL2CPP 没有公开的方法指针访问器；methodPointer 是 MethodInfo 的第一个字段。
     void* address = nullptr;
     std::memcpy(&address, method, sizeof(address));
     if (!executable_address(address)) {
