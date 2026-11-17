@@ -148,6 +148,12 @@ if (NOT probe_legacy_backend_compiles)
     message(FATAL_ERROR "the legacy HookBackend contract changed; custom backends must keep compiling: ${probe_legacy_backend_output}")
 endif ()
 
+# 正向：unity_types.hpp 必须自包含，且 UnityVector2 的类型名映射与 Hook 签名可用。
+il2cpp_native_bridge_compile_probe(probe_unity_types unity_types.cpp)
+if (NOT probe_unity_types_compiles)
+    message(FATAL_ERROR "unity_types.hpp must stay self-contained with a valid Vector2 mapping: ${probe_unity_types_output}")
+endif ()
+
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if (Python3_Interpreter_FOUND)
     add_test(NAME il2cpp_native_bridge_matrix_runner_tests
