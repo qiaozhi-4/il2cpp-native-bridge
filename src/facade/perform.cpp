@@ -31,10 +31,10 @@ std::shared_ptr<RuntimeContext>& facade_context_slot() {
     return slot;
 }
 
-/// 生产环境的进程根：门面首次使用时才创建，生命周期与进程一致。
+/// 生产环境共用 Runtime 的进程根 context：宿主配好的符号解析器等只需配置一次。
+/// 门面（perform）与 Runtime::current() 共享同一 context 与 generation，避免各自发现 libil2cpp。
 std::shared_ptr<RuntimeContext> production_facade_context() {
-    static const auto context = make_runtime_context();
-    return context;
+    return current_runtime_context();
 }
 
 std::string_view stage_name(ErrorStage stage) {

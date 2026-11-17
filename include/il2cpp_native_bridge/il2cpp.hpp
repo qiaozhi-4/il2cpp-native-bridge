@@ -235,7 +235,8 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
                            bool return_is_reference,
                            bool return_is_string,
                            std::string_view return_name,
-                           std::span<const ArgumentSpec> arguments);
+                           std::span<const ArgumentSpec> arguments,
+                           bool allow_byref = false);
 
 /// 核对实例与实参后调用，返回原始托管结果；托管异常抛 managed_exception。
 Il2CppObject* invoke_bound(const BoundSignature& binding, Il2CppObject* instance, std::span<void*> arguments);
@@ -585,7 +586,7 @@ void Method::implementation(Return (*callback)(ReplacementCall<Return, Args...>&
                                        declaring_class_name_ + "::" + name_,
                                        std::is_pointer_v<CleanReturn>,
                                        std::is_same_v<CleanReturn, Il2CppString*>,
-                                       managed_type_name<Return>, specifications);
+                                       managed_type_name<Return>, specifications, true);
 
     detail::ReplacementRequest request;
     request.signature = std::move(binding);

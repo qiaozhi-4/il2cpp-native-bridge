@@ -66,20 +66,17 @@ Runtime make_testing_runtime(Api api, Il2CppDomain* domain) {
     return Runtime(std::move(context));
 }
 
-} /// namespace il2cpp_native_bridge::detail
-
-namespace il2cpp_native_bridge {
-namespace {
-
-std::shared_ptr<detail::RuntimeContext> current_runtime_context() {
-    static const auto context = detail::make_runtime_context();
+std::shared_ptr<RuntimeContext> current_runtime_context() {
+    static const auto context = make_runtime_context();
     return context;
 }
 
-} /// namespace
+} /// namespace il2cpp_native_bridge::detail
+
+namespace il2cpp_native_bridge {
 
 Runtime Runtime::current() {
-    const auto context = current_runtime_context();
+    const auto context = detail::current_runtime_context();
     (void) detail::refresh_context(context);
     return Runtime(context);
 }
@@ -92,7 +89,7 @@ Result<void> Runtime::set_symbol_lookup(void* module,
             "module and IL2CPP symbol lookup are required"));
     }
 
-    const auto context = current_runtime_context();
+    const auto context = detail::current_runtime_context();
     void* previous_owned_module = nullptr;
     {
         std::lock_guard lock(context->mutex);
@@ -128,7 +125,7 @@ Result<void> Runtime::set_export_override(std::string_view symbol_name, void* ad
             "an IL2CPP symbol name and non-null export address are required"));
     }
 
-    const auto context = current_runtime_context();
+    const auto context = detail::current_runtime_context();
     std::lock_guard lock(context->mutex);
     if (context->snapshot.state == RuntimeState::ready || context->snapshot.generation != 0) {
         return Result<void>::failure(make_error(ErrorCode::invalid_argument,

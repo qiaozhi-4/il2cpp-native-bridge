@@ -3,6 +3,7 @@
 #include "facade/facade_internal.hpp"
 #include "il2cpp_native_bridge/il2cpp.hpp"
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -288,5 +289,61 @@ void run_facade_invoke_tests() {
         });
         test_support::check(reused.ok && reused.int_value == 9,
                             "a saved bound method must be callable in a later scope");
+    }
+
+    /// byref 放行契约：replacement 路径用指针载体 + 基础名匹配时接受，invoke 路径仍拒绝。
+    {
+        InvokeFixture context;
+        auto& fixture = context.fixture;
+        auto* method_info = fixture.add_method(context.counter, "MoveByRoute", "System.Void",
+                                               {"System.Boolean&"}, true);
+        test_support::FacadeHarness harness(fixture.api());
+
+        MethodDescriptor descriptor;
+        descriptor.native = method_info;
+        descriptor.declaring_class = context.counter;
+        descriptor.declaring_class_name = "Probe.Counter";
+        descriptor.name = "MoveByRoute";
+        descriptor.return_type = TypeDescriptor{&method_info->return_type, method_info->return_type.name};
+        for (auto& parameter : method_info->parameter_types) {
+            descriptor.parameter_types.push_back(TypeDescriptor{&parameter, parameter.name});
+        }
+        descriptor.is_static = true;
+
+        const std::array<detail::ArgumentSpec, 1> pointer_carrier{
+                detail::ArgumentSpec{true, false, "System.Boolean"}};
+        const std::array<detail::ArgumentSpec, 1> value_carrier{
+                detail::ArgumentSpec{false, false, "System.Boolean"}};
+        const auto context_ptr = harness.context();
+
+        const auto allowed = run_in_scope([&](Outcome& outcome) {
+            const auto generation = detail::require_access_scope().generation;
+            auto binding = detail::bind_method(context_ptr, generation, {descriptor},
+                                               "Probe.Counter::MoveByRoute", false, false,
+                                               "System.Void", pointer_carrier, true);
+            (void) binding;
+        });
+        test_support::check(allowed.ok,
+                            "a matching pointer byref carrier must bind when allow_byref is set");
+
+        const auto denied_invoke = run_in_scope([&](Outcome& outcome) {
+            const auto generation = detail::require_access_scope().generation;
+            auto binding = detail::bind_method(context_ptr, generation, {descriptor},
+                                               "Probe.Counter::MoveByRoute", false, false,
+                                               "System.Void", value_carrier, false);
+            (void) binding;
+        });
+        test_support::check(!denied_invoke.ok && denied_invoke.code == ErrorCode::unsupported_runtime,
+                            "byref must stay rejected on the invoke path");
+
+        const auto denied_mismatch = run_in_scope([&](Outcome& outcome) {
+            const auto generation = detail::require_access_scope().generation;
+            auto binding = detail::bind_method(context_ptr, generation, {descriptor},
+                                               "Probe.Counter::MoveByRoute", false, false,
+                                               "System.Void", value_carrier, true);
+            (void) binding;
+        });
+        test_support::check(!denied_mismatch.ok && denied_mismatch.code == ErrorCode::unsupported_runtime,
+                            "a non-pointer carrier must not bind a byref parameter");
     }
 }

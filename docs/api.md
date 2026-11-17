@@ -135,8 +135,11 @@ Il2Cpp::perform([] {
   因此同名类在不同程序集里不会互相污染。`method(name, arity)` 返回候选集，签名不唯一时用 `overload(...)` 或 `typed<R, Args...>()` 收窄。
 - **错误**：第一个失败环节抛 `BridgeError`，动作边界转成 `Result<void>`；诊断行格式为
   `[il2cpp-native-bridge] stage=… path=… category=… message=…`。
-- **不支持即拒绝**：byref/ref/out、泛型方法、无类型名映射的 C++ 类型在绑定期拒绝；
-  缺少必要 IL2CPP 导出时报 `missing_api`，不会退回猜测。
+- **不支持即拒绝**：泛型方法、无类型名映射的 C++ 类型在绑定期拒绝；缺少必要 IL2CPP
+  导出时报 `missing_api`，不会退回猜测。
+- **byref/ref/out**：`invoke` 与 `typed` 仍拒绝。`implementation` 允许用 C++ 指针载体绑定，
+  条件是该指针有托管类型名映射且名字精确等于去掉 `&` 的托管参数名（例如 `bool* → System.Boolean`
+  对应 `System.Boolean&`）；native ABI 本就按地址透传，其余不匹配情况仍在绑定期拒绝。
 
 ### 部署要求
 

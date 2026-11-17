@@ -96,6 +96,8 @@ std::uint64_t generation_for(const std::shared_ptr<RuntimeContext>& context);
 std::shared_ptr<RuntimeContext> make_testing_context(Api api, Il2CppDomain* domain);
 /// 创建空的运行时 context；构造点集中在 runtime 层，其他翻译单元不依赖门面类型。
 std::shared_ptr<RuntimeContext> make_runtime_context();
+/// 生产进程唯一的运行时 context；Runtime 与新门面共享它，以便符号解析器等配置只做一次。
+std::shared_ptr<RuntimeContext> current_runtime_context();
 void* find_cached_metadata(const std::shared_ptr<RuntimeContext>& context, std::string_view key);
 void cache_metadata(const std::shared_ptr<RuntimeContext>& context, std::string key, void* value);
 bool find_cached_class(const std::shared_ptr<RuntimeContext>& context, std::string_view key, ClassCacheEntry& out);

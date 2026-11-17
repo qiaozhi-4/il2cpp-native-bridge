@@ -55,7 +55,8 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
                            bool return_is_reference,
                            bool return_is_string,
                            std::string_view return_name,
-                           std::span<const ArgumentSpec> arguments) {
+                           std::span<const ArgumentSpec> arguments,
+                           bool allow_byref) {
     const auto& view = require_scope_for(context, generation, path);
     if (candidates.size() != 1) {
         fail(ErrorCode::ambiguous_match, ErrorStage::bind, std::move(path),
@@ -95,16 +96,24 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
     reference_slots.reserve(arguments.size());
     for (std::size_t index = 0; index < arguments.size(); ++index) {
         const auto& specification = arguments[index];
-        reference_slots.push_back(specification.reference_carrier);
         const auto* native = descriptor.parameter_types[index].native;
         const auto name = descriptor.parameter_types[index].name;
 
-        /// 首版不支持 byref/ref/out；生成类型名以 & 结尾，无需额外导出即可判定。
+        /// byref/ref/out：托管类型名以 & 结尾。invoke 路径拒绝；replacement 路径在用 C++ 指针
+        /// 载体（如 bool* 对应 System.Boolean&）精确声明时才接受，因为 native ABI 本就按地址透传。
         if (name.ends_with('&')) {
-            fail(ErrorCode::unsupported_runtime, ErrorStage::bind, path,
-                 "byref, ref and out parameters are not supported");
+            const auto element_name = name.substr(0, name.size() - 1);
+            if (!allow_byref || !specification.reference_carrier || specification.string_carrier ||
+                element_name != specification.managed_name) {
+                fail(ErrorCode::unsupported_runtime, ErrorStage::bind, path,
+                     "byref, ref and out parameters are not supported");
+            }
+            /// byref 传的是值地址，不参与托管对象引用校验。
+            reference_slots.push_back(false);
+            continue;
         }
 
+        reference_slots.push_back(specification.reference_carrier);
         if (specification.reference_carrier) {
             if (specification.string_carrier) {
                 if (name != "System.String") {
