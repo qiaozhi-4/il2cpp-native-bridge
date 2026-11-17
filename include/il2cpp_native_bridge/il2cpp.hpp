@@ -154,6 +154,20 @@ Result<void> submit_perform_request(std::function<Result<void>()> action,
  */
 class Il2Cpp {
 public:
+    /**
+     * 提交动作到协调线程异步执行，动作自动处于运行时访问作用域内，可直接调用 domain() 等门面 API。
+     *
+     * 动作只能返回 void 或 Result<void>：void 视为成功，Result<void> 原样作为结果。
+     * 动作抛出的 BridgeError 或标准异常在工作线程边界转换为失败的 Result<void>，不会传播到提交方。
+     * 结果只通过 completion 送达；completion 在协调线程执行，但已离开访问作用域。
+     *
+     * @tparam Action 可调用对象，调用结果必须是 void 或 Result<void>，否则编译期拒绝。
+     * @param action 待执行的动作，按转发捕获为类型擦除的函数。
+     * @param completion 完成后至多调用一次的结果回调；回调抛出的异常仅被报告，不改变结果或重跑动作。
+     * @param options 等待诊断选项，diagnostic_after 为负会在提交期被拒绝。
+     * @return 只表示提交是否被接受；队列已满、执行器停机或提交参数非法时返回失败，
+     *         不代表动作已执行或已产生结果。
+     */
     template <typename Action>
     static Result<void> perform(Action&& action,
                                 Completion completion = {},
@@ -162,6 +176,7 @@ public:
         static_assert(std::is_void_v<Outcome> || std::is_same_v<std::remove_cvref_t<Outcome>, Result<void>>,
                       "Il2Cpp::perform action must return void or Result<void>");
 
+        /// 统一擦除为 Result<void> 形态，让协调线程只处理一种结果；void 动作补一个成功结果。
         std::function<Result<void>()> erased;
         if constexpr (std::is_void_v<Outcome>) {
             erased = [callable = std::forward<Action>(action)]() mutable -> Result<void> {
