@@ -155,6 +155,18 @@ Result<void> submit_perform_request(std::function<Result<void>()> action,
 class Il2Cpp {
 public:
     /**
+     * 单参重载：不关心最终结果时使用，等价于 perform(action, {}, {})。
+     *
+     * action 仍在协调线程异步执行并自动进入运行时访问作用域；失败通过默认诊断报告。
+     */
+    template <typename Action>
+    static Result<void> perform(Action&& action) {
+        return perform(std::forward<Action>(action), Completion{}, PerformOptions{});
+    }
+
+    /**
+     * 带结果与等待诊断的重载：需要观察最终结果或等待阈值时使用。
+     *
      * 提交动作到协调线程异步执行，动作自动处于运行时访问作用域内，可直接调用 domain() 等门面 API。
      *
      * 动作只能返回 void 或 Result<void>：void 视为成功，Result<void> 原样作为结果。
@@ -170,8 +182,8 @@ public:
      */
     template <typename Action>
     static Result<void> perform(Action&& action,
-                                Completion completion = {},
-                                PerformOptions options = {}) {
+                                Completion completion,
+                                PerformOptions options) {
         using Outcome = std::invoke_result_t<Action&>;
         static_assert(std::is_void_v<Outcome> || std::is_same_v<std::remove_cvref_t<Outcome>, Result<void>>,
                       "Il2Cpp::perform action must return void or Result<void>");

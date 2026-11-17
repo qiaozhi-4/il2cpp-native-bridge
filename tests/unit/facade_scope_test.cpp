@@ -138,7 +138,8 @@ void run_facade_scope_tests() {
                 [&](Result<void>) {
                     attached_in_completion.store(thread_attached(api));
                     completed.store(true);
-                });
+                },
+                {});
         test_support::check(submitted.has_value(), "submitting a scoped action must succeed");
         test_support::check(test_support::wait_until([&] { return completed.load(); },
                                                      std::chrono::milliseconds(5000)),
@@ -167,11 +168,13 @@ void run_facade_scope_tests() {
                                     events.emplace_back("inner-done");
                                 }
                                 all_done.store(true);
-                            });
+                            },
+                            {});
                     test_support::check(nested.has_value(), "a nested perform must be accepted");
                     { std::lock_guard lock(mutex); events.emplace_back("outer-end"); }
                 },
-                [&](Result<void>) { std::lock_guard lock(mutex); events.emplace_back("outer-done"); });
+                [&](Result<void>) { std::lock_guard lock(mutex); events.emplace_back("outer-done"); },
+                {});
         test_support::check(submitted.has_value(), "submitting the outer request must succeed");
         test_support::check(test_support::wait_until([&] { return all_done.load(); },
                                                      std::chrono::milliseconds(5000)),
@@ -205,9 +208,9 @@ void run_facade_scope_tests() {
 
         std::atomic<bool> after{false};
         auto throwing_completion = Il2Cpp::perform(
-                [] {}, [](Result<void>) { throw std::runtime_error("completion exploded"); });
+                [] {}, [](Result<void>) { throw std::runtime_error("completion exploded"); }, {});
         test_support::check(throwing_completion.has_value(), "a throwing completion must not break submission");
-        auto follow_up = Il2Cpp::perform([] {}, [&after](Result<void>) { after.store(true); });
+        auto follow_up = Il2Cpp::perform([] {}, [&after](Result<void>) { after.store(true); }, {});
         test_support::check(follow_up.has_value(), "the executor must keep accepting work after a completion throws");
         test_support::check(test_support::wait_until([&] { return after.load(); },
                                                      std::chrono::milliseconds(5000)),
@@ -231,7 +234,8 @@ void run_facade_scope_tests() {
                 [&](Result<void>) {
                     expired_before_completion.store(observer.expired());
                     completed.store(true);
-                });
+                },
+                {});
         token.reset();
         test_support::check(submitted.has_value(), "submitting a capturing action must succeed");
         test_support::check(test_support::wait_until([&] { return completed.load(); },

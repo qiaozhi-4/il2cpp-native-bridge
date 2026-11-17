@@ -61,7 +61,8 @@ void submit_hundred(Recorder& recorder) {
     for (int index = 0; index < 100; ++index) {
         auto submitted = Il2Cpp::perform(
                 [&recorder, index] { recorder.on_action(index); },
-                [&recorder](Result<void> result) { recorder.on_completion(result.has_value()); });
+                [&recorder](Result<void> result) { recorder.on_completion(result.has_value()); },
+                {});
         test_support::check(submitted.has_value(), "submitting a request must succeed while the queue has room");
     }
 }
@@ -163,14 +164,16 @@ void run_facade_perform_tests() {
         std::atomic<int> completions{0};
         for (int index = 0; index < 128; ++index) {
             auto submitted = Il2Cpp::perform([&actions] { actions.fetch_add(1, std::memory_order_relaxed); },
-                                             [&completions](Result<void>) { completions.fetch_add(1, std::memory_order_relaxed); });
+                                             [&completions](Result<void>) { completions.fetch_add(1, std::memory_order_relaxed); },
+                                             {});
             test_support::check(submitted.has_value(), "the first 128 requests must be accepted");
         }
 
         std::atomic<int> rejected_actions{0};
         std::atomic<int> rejected_completions{0};
         auto rejected = Il2Cpp::perform([&rejected_actions] { rejected_actions.fetch_add(1, std::memory_order_relaxed); },
-                                        [&rejected_completions](Result<void>) { rejected_completions.fetch_add(1, std::memory_order_relaxed); });
+                                        [&rejected_completions](Result<void>) { rejected_completions.fetch_add(1, std::memory_order_relaxed); },
+                                        {});
         test_support::check(!rejected.has_value(), "the 129th queued request must be rejected");
         test_support::check(rejected.error().code == ErrorCode::resource_exhausted,
                             "a full queue must report resource_exhausted");
@@ -187,7 +190,7 @@ void run_facade_perform_tests() {
                             "the accepted requests must drain after the runtime becomes ready");
         test_support::check(actions.load() == 128, "exactly the accepted requests may run");
 
-        auto recovered = Il2Cpp::perform([] {}, {});
+        auto recovered = Il2Cpp::perform([] {});
         test_support::check(recovered.has_value(), "capacity must be released after the queue drains");
     }
 
@@ -199,7 +202,8 @@ void run_facade_perform_tests() {
 
         std::atomic<int> completions{0};
         auto empty = Il2Cpp::perform(std::function<Result<void>()>{},
-                                     [&completions](Result<void>) { completions.fetch_add(1); });
+                                     [&completions](Result<void>) { completions.fetch_add(1); },
+                                     {});
         test_support::check(!empty.has_value() && empty.error().code == ErrorCode::invalid_argument,
                             "an empty action must be rejected");
 
@@ -214,13 +218,13 @@ void run_facade_perform_tests() {
 
         /// 执行器停机后不再接收新请求：先让执行器真正启动，再停机。
         std::atomic<bool> ran{false};
-        auto started = Il2Cpp::perform([&ran] { ran.store(true); }, {});
+        auto started = Il2Cpp::perform([&ran] { ran.store(true); });
         test_support::check(started.has_value(), "a valid request must start the executor");
         test_support::check(test_support::wait_until([&] { return ran.load(); }, std::chrono::milliseconds(5000)),
                             "the valid request must run before the executor stops");
 
         detail::stop_facade_executor(harness.context());
-        auto stopped = Il2Cpp::perform([] {}, {});
+        auto stopped = Il2Cpp::perform([] {});
         test_support::check(!stopped.has_value() && stopped.error().stage == ErrorStage::submit,
                             "a stopped executor must reject new submissions");
     }
@@ -285,7 +289,8 @@ void run_facade_perform_tests() {
                     /// 先写结果再发布完成计数，避免调用线程看到完成却读到旧结果。
                     if (!result) seen = result.error().code;
                     completions.fetch_add(1);
-                });
+                },
+                {});
         test_support::check(failed.has_value(), "a failing action must still be accepted");
         test_support::check(test_support::wait_until([&] { return completions.load() == 1; },
                                                      std::chrono::milliseconds(5000)),
@@ -304,7 +309,8 @@ void run_facade_perform_tests() {
                     /// 先写结果再发布完成计数，避免调用线程看到完成却读到旧结果。
                     if (!result) seen = result.error().code;
                     completions.fetch_add(1);
-                });
+                },
+                {});
         test_support::check(thrown.has_value(), "a throwing action must still be accepted");
         test_support::check(test_support::wait_until([&] { return completions.load() == 1; },
                                                      std::chrono::milliseconds(5000)),

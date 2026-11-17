@@ -294,7 +294,8 @@ std::vector<Check> facade_checks() {
                 std::lock_guard lock(mutex);
                 completed = true;
                 signal.notify_all();
-            });
+            },
+            {});
     if (!submitted) {
         add(checks, "facade_async_perform", "failed", "the perform request was rejected");
         return checks;

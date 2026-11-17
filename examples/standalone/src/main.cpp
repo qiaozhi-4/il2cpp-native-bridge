@@ -19,39 +19,33 @@ void on_set_time_scale(INB::ReplacementCall<void, float>& call, float value) {
 int main() {
     using namespace INB;
 
-    const auto submitted = Il2Cpp::perform(
-            [] {
-                auto time = Il2Cpp::domain()
-                                    .assembly("UnityEngine.CoreModule")
-                                    .image()
-                                    .klass("UnityEngine.Time");
-                auto setter = time.method("set_timeScale", 1);
-                auto getter = time.method("get_timeScale", 0);
+    const auto submitted = Il2Cpp::perform([] {
+        auto time = Il2Cpp::domain()
+                            .assembly("UnityEngine.CoreModule")
+                            .image()
+                            .klass("UnityEngine.Time");
+        auto setter = time.method("set_timeScale", 1);
+        auto getter = time.method("get_timeScale", 0);
 
-                setter.invoke<void, float>(0.5f);
-                const float observed = getter.invoke<float>();
-                std::printf("timeScale=%.3f\n", static_cast<double>(observed));
+        setter.invoke<void, float>(0.5f);
+        const float observed = getter.invoke<float>();
+        std::printf("timeScale=%.3f\n", static_cast<double>(observed));
 
-                /// OFF 构建没有 Gum 后端：查询与调用照常，替换按 missing_api 拒绝。
-                try {
-                    setter.implementation(&on_set_time_scale);
-                } catch (const BridgeError& error) {
-                    if (error.error().code == ErrorCode::missing_api) {
-                        std::fputs("managed replacement is unavailable in this build\n", stdout);
-                        return;
-                    }
-                    throw;
-                }
+        /// OFF 构建没有 Gum 后端：查询与调用照常，替换按 missing_api 拒绝。
+        try {
+            setter.implementation(&on_set_time_scale);
+        } catch (const BridgeError& error) {
+            if (error.error().code == ErrorCode::missing_api) {
+                std::fputs("managed replacement is unavailable in this build\n", stdout);
+                return;
+            }
+            throw;
+        }
 
-                setter.invoke<void, float>(0.5f);
-                setter.revert();
-                setter.invoke<void, float>(observed);
-            },
-            [](Result<void> result) {
-                if (!result) {
-                    std::fprintf(stderr, "perform failed: %s\n", result.error().message.c_str());
-                }
-            });
+        setter.invoke<void, float>(0.5f);
+        setter.revert();
+        setter.invoke<void, float>(observed);
+    });
 
     return submitted ? 0 : 1;
 }

@@ -103,7 +103,8 @@ ErrorCode submit_failing(const std::function<void()>& body) {
         std::lock_guard lock(mutex);
         done = true;
         signal.notify_all();
-    });
+    },
+    {});
     if (!submitted) return ErrorCode::internal_error;
 
     std::unique_lock lock(mutex);

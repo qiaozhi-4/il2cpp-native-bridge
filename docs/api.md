@@ -131,6 +131,7 @@ Il2Cpp::perform([] {
 - **作用域**：`Il2Cpp::perform` 的动作在库的协调线程上执行，动作内自动处于访问作用域；
   替换回调内同样自动建立作用域，可以直接继续调用 `Il2Cpp::domain()`。
 - **异步**：`perform` 只表示「提交被接受」，完成通过 completion 回调送达；不要在 Unity 主线程同步等待。
+- **重载**：常用 `perform(action)` 不传结果与诊断参数，失败由默认诊断报告；需要观察最终结果或等待阈值时用 `perform(action, completion, options)`。
 - **对象链**：`domain → assembly → image → klass → method`，类解析限定在选定 image 内，
   因此同名类在不同程序集里不会互相污染。`method(name, arity)` 返回候选集，签名不唯一时用 `overload(...)` 或 `typed<R, Args...>()` 收窄。
 - **错误**：第一个失败环节抛 `BridgeError`，动作边界转成 `Result<void>`；诊断行格式为

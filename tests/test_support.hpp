@@ -141,7 +141,8 @@ inline ScopeOutcome run_in_scope(const std::function<void(ScopeOutcome&)>& body)
                 std::lock_guard lock(mutex);
                 done = true;
                 signal.notify_all();
-            });
+            },
+            {});
     if (!submitted) {
         outcome.message = "submitting the scoped request failed";
         return outcome;
