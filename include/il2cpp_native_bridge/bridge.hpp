@@ -173,18 +173,17 @@ public:
     /**
      * 注册宿主自定义的 IL2CPP 导出符号解析器，替代默认模块扫描。
      *
-     * 供使用自建 ELF 扫描器的宿主使用。在 is_ready(module) 返回 true 前保持 waiting_for_module，
-     * 避免扫描器尚未发现模块时误判为不受支持的版本。runtime 就绪后不再接受参数变更，但以
-     * 完全相同的三个参数重复调用是幂等的，直接返回成功。
+     * 该方法只设置解析器，不做初始化等待。必须在任何 runtime 操作之前调用；参数为空或
+     * runtime 已进入 ready 时记录诊断并终止进程。
+     * 以完全相同的三个参数重复调用无副作用。
      *
      * @param module 宿主提供的模块句柄，不能为空。
      * @param lookup 符号查找函数，不能为空。
      * @param is_ready 可选就绪检查；为空表示模块始终可扫描。
-     * @return 参数为空、runtime 已就绪且参数不同，或此前以不同符号解析器配置过时返回错误。
      */
-    static Result<void> set_symbol_lookup(void* module,
-                                          RuntimeSymbolLookup lookup,
-                                          RuntimeSymbolLookupReady is_ready = nullptr);
+    static void set_symbol_lookup(void* module,
+                                  RuntimeSymbolLookup lookup,
+                                  RuntimeSymbolLookupReady is_ready = nullptr);
     /**
      * 为单个 IL2CPP 导出注册地址覆盖，优先于符号解析器的结果。
      *

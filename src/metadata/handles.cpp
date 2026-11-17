@@ -1,6 +1,8 @@
 #include "metadata_internal.hpp"
 #include "il2cpp_native_bridge/bridge.hpp"
+#include "facade/facade_internal.hpp"
 
+#include <cstdlib>
 #include <memory>
 
 namespace INB::detail {
@@ -81,26 +83,28 @@ Runtime Runtime::current() {
     return Runtime(context);
 }
 
-Result<void> Runtime::set_symbol_lookup(void* module,
-                                       RuntimeSymbolLookup lookup,
-                                       RuntimeSymbolLookupReady is_ready) {
+void Runtime::set_symbol_lookup(void* module,
+                                RuntimeSymbolLookup lookup,
+                                RuntimeSymbolLookupReady is_ready) {
     if (module == nullptr || lookup == nullptr) {
-        return Result<void>::failure(make_error(ErrorCode::invalid_argument,
-            "module and IL2CPP symbol lookup are required"));
+        detail::report_diagnostic(ErrorStage::none, {}, "fatal",
+                                  "module and IL2CPP symbol lookup are required");
+        std::abort();
     }
 
     const auto context = detail::current_runtime_context();
     void* previous_owned_module = nullptr;
     {
         std::lock_guard lock(context->mutex);
-        /// 相同参数重复配置是幂等的：调用方常在多处配置，无法得知此前是否已生效。
+        /// 相同参数重复配置没有副作用；调用方无需自行记录是否已配置。
         if (context->module == module && context->symbol_lookup == lookup &&
             context->symbol_lookup_ready == is_ready) {
-            return Result<void>::success();
+            return;
         }
         if (context->snapshot.state == RuntimeState::ready || context->snapshot.generation != 0) {
-            return Result<void>::failure(make_error(ErrorCode::invalid_argument,
-                "IL2CPP symbol lookup must be configured before the runtime becomes ready"));
+            detail::report_diagnostic(ErrorStage::none, {}, "fatal",
+                                      "IL2CPP symbol lookup must be configured before initialization");
+            std::abort();
         }
         if (context->owns_module && context->module != nullptr && context->module != module) {
             previous_owned_module = context->module;
@@ -111,12 +115,12 @@ Result<void> Runtime::set_symbol_lookup(void* module,
         context->symbol_lookup_ready = is_ready;
         context->api = {};
         context->domain = nullptr;
-        context->snapshot.state = RuntimeState::initializing;
+        context->snapshot.state = RuntimeState::waiting_for_module;
         context->snapshot.last_error.clear();
         context->snapshot.missing_apis.clear();
+        context->snapshot.missing_optional_apis.clear();
     }
     if (previous_owned_module != nullptr) detail::close_runtime_module(previous_owned_module);
-    return Result<void>::success();
 }
 
 Result<void> Runtime::set_export_override(std::string_view symbol_name, void* address) {
