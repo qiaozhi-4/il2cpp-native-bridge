@@ -1,5 +1,7 @@
 #include "facade_internal.hpp"
 
+#include "logging/internal_log.hpp"
+
 #include <cstdio>
 #include <exception>
 #include <string>
@@ -37,7 +39,7 @@ std::shared_ptr<RuntimeContext> production_facade_context() {
     return current_runtime_context();
 }
 
-std::string_view stage_name(ErrorStage stage) {
+const char* stage_name(ErrorStage stage) {
     switch (stage) {
         case ErrorStage::none: return "none";
         case ErrorStage::submit: return "submit";
@@ -171,6 +173,13 @@ const ReadyView& require_access_scope() {
 }
 
 void fail(ErrorCode code, ErrorStage stage, std::string path, std::string message) {
+    /// 参考 BNM：在失败发生的唯一出口就地打印 logcat，携带阶段、定位路径与原因。
+    /// 只输出诊断文本，不含对象内容或裸地址；日志开关关闭时该调用编译为空操作。
+    if (!path.empty()) {
+        INB_LOGE("[%s] %s: %s", stage_name(stage), path.c_str(), message.c_str());
+    } else {
+        INB_LOGE("[%s] %s", stage_name(stage), message.c_str());
+    }
     throw BridgeError(make_error(code, stage, std::move(path), std::move(message)));
 }
 

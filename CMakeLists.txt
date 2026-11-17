@@ -24,6 +24,9 @@ option(IL2CPP_NATIVE_BRIDGE_WERROR "Treat library warnings as errors" OFF)
 option(IL2CPP_NATIVE_BRIDGE_SANITIZE
         "Sanitizer list for the library and its tests, for example address,undefined"
         "")
+option(IL2CPP_NATIVE_BRIDGE_ENABLE_LOGCAT
+        "Emit INB-tagged logcat diagnostics for bridge failures in Android Debug builds"
+        ${ANDROID})
 
 if (ANDROID)
     set(IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_DEFAULT ON)
@@ -87,6 +90,14 @@ target_include_directories(il2cpp_native_bridge
 )
 set_target_properties(il2cpp_native_bridge PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(il2cpp_native_bridge PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
+
+# 失败日志：参考 BNM 的编译期开关，只在 Android Debug 构建打 INB 标签的 logcat。
+# host 构建与单测不定义 INB_ENABLE_LOGCAT，日志头展开为空操作，行为保持不变。
+if (ANDROID AND IL2CPP_NATIVE_BRIDGE_ENABLE_LOGCAT)
+    target_compile_definitions(il2cpp_native_bridge PRIVATE
+            "$<$<CONFIG:Debug>:INB_ENABLE_LOGCAT>")
+    target_link_libraries(il2cpp_native_bridge PRIVATE log)
+endif ()
 
 # managed replacement 的 provider 二选一：真实 Gum 或 OFF 构建的 unavailable 实现。
 # 两者提供同一组符号，测试目标可以自带真实 provider（配合 Gum 替身）覆盖它。
