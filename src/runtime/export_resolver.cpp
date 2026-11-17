@@ -1,6 +1,6 @@
 #include "runtime/il2cpp_api.hpp"
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 namespace {
 
 void* resolve_symbol(void* module,
@@ -43,4 +43,4 @@ ResolvedExports resolve_exports(void* module,
     return result;
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

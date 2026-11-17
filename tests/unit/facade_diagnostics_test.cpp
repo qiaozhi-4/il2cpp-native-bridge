@@ -17,7 +17,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 
 namespace {
 

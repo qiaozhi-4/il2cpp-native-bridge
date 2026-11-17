@@ -9,7 +9,7 @@
 #include <cstdio>
 #include <exception>
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 
 namespace {
 

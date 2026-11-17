@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 namespace {
 
 /// 目标类型是否为值类型；缺少必要识别导出时明确失败，不猜类别。
@@ -217,4 +217,4 @@ void unbox_result(const BoundSignature& binding, Il2CppObject* boxed, void* dest
     std::memcpy(destination, data, size);
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

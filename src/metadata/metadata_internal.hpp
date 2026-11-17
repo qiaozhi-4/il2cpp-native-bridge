@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 /// IL2CPP 方法标志位中的 static 位。
 inline constexpr std::uint32_t kMethodAttributeStatic = 0x0010;
@@ -72,4 +72,4 @@ inline void append_metadata_cache_part(std::string& key, std::string_view value)
     key.append(value);
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

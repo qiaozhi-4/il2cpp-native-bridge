@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace il2cpp_native_bridge {
+namespace INB {
 namespace {
 
 using detail::ReadyView;
@@ -215,4 +215,4 @@ Method Method::overload(std::span<const std::string_view> parameter_types) const
     return Method(context_, generation_, declaring_class_, declaring_class_name_, name_, std::move(narrowed));
 }
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

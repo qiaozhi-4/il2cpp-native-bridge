@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 namespace {
 
 /// 同时占用 managed 状态的上限；与契约的 256 个名额一致。
@@ -262,9 +262,9 @@ ReplacementState replacement_state_of(const std::shared_ptr<RuntimeContext>& con
                              : static_cast<ReplacementState>(record->state.load());
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 void Method::revert() const {
     detail::revert_replacement(context_, generation_, candidates_, declaring_class_name_ + "::" + name_);
@@ -274,4 +274,4 @@ ReplacementState Method::replacement_state() const {
     return detail::replacement_state_of(context_, generation_, candidates_, declaring_class_name_ + "::" + name_);
 }
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

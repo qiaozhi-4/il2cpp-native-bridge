@@ -9,7 +9,7 @@
 #include <optional>
 #include <string>
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 using detail::ProfileSupport;
 
 namespace {

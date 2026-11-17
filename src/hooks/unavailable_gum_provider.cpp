@@ -1,6 +1,6 @@
 #include "hooks/managed_provider_internal.hpp"
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 namespace {
 
 Result<void*> unavailable_install(void*, void*, void*) {
@@ -25,4 +25,4 @@ const ManagedGumProvider kProvider{false, unavailable_install, unavailable_rever
 /// OFF 构建用同一组符号保持可链接；查询与调用路径不因此被阻断。
 const ManagedGumProvider& managed_gum_provider() { return kProvider; }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

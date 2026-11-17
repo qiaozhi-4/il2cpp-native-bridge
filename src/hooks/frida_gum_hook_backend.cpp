@@ -5,7 +5,7 @@
 #include <mutex>
 #include <utility>
 
-namespace il2cpp_native_bridge {
+namespace INB {
 namespace {
 
 void initialize_gum() {
@@ -97,4 +97,4 @@ Result<void> perform_when_ready_with_frida_gum_hook_backend(
         std::move(completion), std::move(options));
 }
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

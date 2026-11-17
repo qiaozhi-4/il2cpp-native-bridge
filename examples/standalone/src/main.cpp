@@ -10,14 +10,14 @@ namespace {
 
 /// 替换回调：把时间缩放放大一倍后交给原实现。
 /// 必须是普通函数（无捕获），这样安装时不需要额外的上下文对象。
-void on_set_time_scale(il2cpp_native_bridge::ReplacementCall<void, float>& call, float value) {
+void on_set_time_scale(INB::ReplacementCall<void, float>& call, float value) {
     call.original(value * 2.0f);
 }
 
 } /// namespace
 
 int main() {
-    using namespace il2cpp_native_bridge;
+    using namespace INB;
 
     const auto submitted = Il2Cpp::perform(
             [] {

@@ -28,7 +28,7 @@ struct Il2CppMethodInfo;
 struct Il2CppObject;
 struct Il2CppType;
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 namespace detail {
 struct RuntimeContext;
@@ -596,4 +596,4 @@ void Method::implementation(Return (*callback)(ReplacementCall<Return, Args...>&
     detail::install_replacement(request);
 }
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

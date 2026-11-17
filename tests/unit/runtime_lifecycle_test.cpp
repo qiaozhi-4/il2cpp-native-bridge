@@ -27,42 +27,42 @@ void* lookup_partial(void*, const char* name) {
 void* lookup_none(void*, const char*) { return nullptr; }
 
 /// 构造一个走真实解析路径（非注入 API）的 context，用于观察 core/legacy 就绪差异。
-std::shared_ptr<il2cpp_native_bridge::detail::RuntimeContext> make_resolved_context() {
-    auto context = il2cpp_native_bridge::detail::make_testing_context({}, nullptr);
+std::shared_ptr<INB::detail::RuntimeContext> make_resolved_context() {
+    auto context = INB::detail::make_testing_context({}, nullptr);
     context->module = reinterpret_cast<void*>(0x1);
     context->symbol_lookup = &fake_il2cpp::lookup_symbol;
     return context;
 }
 
-bool group_missing(const il2cpp_native_bridge::detail::RuntimeContext& context, const std::string& group) {
+bool group_missing(const INB::detail::RuntimeContext& context, const std::string& group) {
     return context.missing_by_group.find(group) != context.missing_by_group.end();
 }
 
 } /// namespace
 
 void run_runtime_lifecycle_tests() {
-    const auto missing = il2cpp_native_bridge::detail::resolve_exports(nullptr, lookup_none);
+    const auto missing = INB::detail::resolve_exports(nullptr, lookup_none);
     test_support::check(!missing.has_required_exports(), "an empty runtime must report missing required exports");
     test_support::check(!missing.missing_required.empty(), "missing export diagnostics must not be empty");
 
-    const auto partial = il2cpp_native_bridge::detail::resolve_exports(nullptr, lookup_partial);
+    const auto partial = INB::detail::resolve_exports(nullptr, lookup_partial);
     test_support::check(partial.api.domain_get != nullptr, "resolver must bind il2cpp_domain_get");
     test_support::check(partial.api.domain_get_assemblies != nullptr, "resolver must bind domain assembly enumeration");
     test_support::check(!partial.has_required_exports(), "partial exports must not mark the runtime ready");
     test_support::check(std::find(partial.missing_required.begin(), partial.missing_required.end(), "il2cpp_runtime_invoke") != partial.missing_required.end(),
                         "missing runtime invocation must be named in diagnostics");
 
-    const auto host_runtime = il2cpp_native_bridge::Runtime::current();
-    test_support::check(host_runtime.snapshot().state == il2cpp_native_bridge::RuntimeState::waiting_for_module,
+    const auto host_runtime = INB::Runtime::current();
+    test_support::check(host_runtime.snapshot().state == INB::RuntimeState::waiting_for_module,
                         "host runtime without libil2cpp must remain in the waiting state");
 
     /// 相同参数重复配置幂等；任一参数不同则走原有路径（ready 之前允许覆盖）。
     void* module = reinterpret_cast<void*>(0x10);
-    test_support::check(il2cpp_native_bridge::Runtime::set_symbol_lookup(module, lookup_none, nullptr).has_value(),
+    test_support::check(INB::Runtime::set_symbol_lookup(module, lookup_none, nullptr).has_value(),
                         "the first symbol lookup configuration must succeed");
-    test_support::check(il2cpp_native_bridge::Runtime::set_symbol_lookup(module, lookup_none, nullptr).has_value(),
+    test_support::check(INB::Runtime::set_symbol_lookup(module, lookup_none, nullptr).has_value(),
                         "repeating an identical symbol lookup configuration must be idempotent");
-    test_support::check(il2cpp_native_bridge::Runtime::set_symbol_lookup(module, lookup_partial, nullptr).has_value(),
+    test_support::check(INB::Runtime::set_symbol_lookup(module, lookup_partial, nullptr).has_value(),
                         "changing the resolver before the runtime is ready must still succeed");
 
     /// core-ready 不要求 invoke/unbox/类型识别等非核心导出，legacy-ready 仍按原 required 集合判断。
@@ -75,9 +75,9 @@ void run_runtime_lifecycle_tests() {
 
         const auto context = make_resolved_context();
 
-        const auto core = il2cpp_native_bridge::detail::refresh_core(context);
+        const auto core = INB::detail::refresh_core(context);
         test_support::check(core.has_value(), "core readiness must not require invocation exports");
-        test_support::check(context->core.state == il2cpp_native_bridge::RuntimeState::ready,
+        test_support::check(context->core.state == INB::RuntimeState::ready,
                             "core readiness must publish the ready state");
         test_support::check(group_missing(*context, "type"),
                             "missing type exports must be reported under the type capability group");
@@ -86,8 +86,8 @@ void run_runtime_lifecycle_tests() {
                                       "il2cpp_type_get_type") != context->missing_by_group.at("type").end(),
                             "the missing type export must be named in its capability group");
 
-        const auto legacy = il2cpp_native_bridge::detail::refresh_context(context);
-        test_support::check(!legacy.has_value() && legacy.error().code == il2cpp_native_bridge::ErrorCode::unsupported_runtime,
+        const auto legacy = INB::detail::refresh_context(context);
+        test_support::check(!legacy.has_value() && legacy.error().code == INB::ErrorCode::unsupported_runtime,
                             "legacy readiness must still require the original export set");
 
         fake_il2cpp::clear_disabled_symbols();
@@ -100,7 +100,7 @@ void run_runtime_lifecycle_tests() {
         fake_il2cpp::disable_symbol("il2cpp_string_chars");
 
         const auto context = make_resolved_context();
-        const auto core = il2cpp_native_bridge::detail::refresh_core(context);
+        const auto core = INB::detail::refresh_core(context);
         test_support::check(core.has_value(), "a missing string export must not block core readiness");
         test_support::check(group_missing(*context, "string"), "the missing string export must be grouped as string");
         test_support::check(std::find(context->core.capabilities.begin(), context->core.capabilities.end(), "string") ==
@@ -121,23 +121,23 @@ void run_runtime_lifecycle_tests() {
         fake_il2cpp::clear_disabled_symbols();
 
         const auto legacy_first = make_resolved_context();
-        test_support::check(il2cpp_native_bridge::detail::refresh_context(legacy_first).has_value(),
+        test_support::check(INB::detail::refresh_context(legacy_first).has_value(),
                             "legacy readiness must succeed with the complete export table");
-        const auto generation = il2cpp_native_bridge::detail::generation_for(legacy_first);
+        const auto generation = INB::detail::generation_for(legacy_first);
         test_support::check(generation != 0, "the first ready transition must establish a non-zero generation");
-        test_support::check(il2cpp_native_bridge::detail::refresh_core(legacy_first).has_value(),
+        test_support::check(INB::detail::refresh_core(legacy_first).has_value(),
                             "core readiness must succeed after legacy readiness");
-        test_support::check(il2cpp_native_bridge::detail::generation_for(legacy_first) == generation,
+        test_support::check(INB::detail::generation_for(legacy_first) == generation,
                             "legacy ready must not bump the generation again");
 
         const auto core_first = make_resolved_context();
-        test_support::check(il2cpp_native_bridge::detail::refresh_core(core_first).has_value(),
+        test_support::check(INB::detail::refresh_core(core_first).has_value(),
                             "core readiness must succeed on its own");
-        const auto core_generation = il2cpp_native_bridge::detail::generation_for(core_first);
+        const auto core_generation = INB::detail::generation_for(core_first);
         test_support::check(core_generation != 0, "core readiness must establish a non-zero generation");
-        test_support::check(il2cpp_native_bridge::detail::refresh_context(core_first).has_value(),
+        test_support::check(INB::detail::refresh_context(core_first).has_value(),
                             "legacy readiness must succeed after core readiness");
-        test_support::check(il2cpp_native_bridge::detail::generation_for(core_first) == core_generation,
+        test_support::check(INB::detail::generation_for(core_first) == core_generation,
                             "core ready must not bump the generation when legacy becomes ready");
     }
 
@@ -148,10 +148,10 @@ void run_runtime_lifecycle_tests() {
         fake_il2cpp::disable_symbol("il2cpp_get_corlib");
 
         const auto context = make_resolved_context();
-        const auto core = il2cpp_native_bridge::detail::refresh_core(context);
-        test_support::check(!core.has_value() && core.error().code == il2cpp_native_bridge::ErrorCode::unsupported_runtime,
+        const auto core = INB::detail::refresh_core(context);
+        test_support::check(!core.has_value() && core.error().code == INB::ErrorCode::unsupported_runtime,
                             "a runtime without il2cpp_get_corlib must be unsupported for the facade");
-        test_support::check(context->core.state == il2cpp_native_bridge::RuntimeState::unsupported,
+        test_support::check(context->core.state == INB::RuntimeState::unsupported,
                             "the core snapshot must record the unsupported state");
 
         fake_il2cpp::clear_disabled_symbols();
@@ -163,14 +163,14 @@ void run_runtime_lifecycle_tests() {
         fixture.set_corlib_available(false);
 
         const auto context = make_resolved_context();
-        const auto core = il2cpp_native_bridge::detail::refresh_core(context);
-        test_support::check(!core.has_value() && core.error().code == il2cpp_native_bridge::ErrorCode::runtime_not_ready,
+        const auto core = INB::detail::refresh_core(context);
+        test_support::check(!core.has_value() && core.error().code == INB::ErrorCode::runtime_not_ready,
                             "a null corlib must keep the facade waiting instead of failing unsupported");
-        test_support::check(context->core.state == il2cpp_native_bridge::RuntimeState::initializing,
+        test_support::check(context->core.state == INB::RuntimeState::initializing,
                             "the core snapshot must stay initializing while corlib is null");
 
         fixture.set_corlib_available(true);
-        test_support::check(il2cpp_native_bridge::detail::refresh_core(context).has_value(),
+        test_support::check(INB::detail::refresh_core(context).has_value(),
                             "core readiness must recover once the runtime initializes");
     }
 
@@ -181,14 +181,14 @@ void run_runtime_lifecycle_tests() {
         fixture.set_assemblies_available(false);
 
         const auto context = make_resolved_context();
-        const auto core = il2cpp_native_bridge::detail::refresh_core(context);
-        test_support::check(!core.has_value() && core.error().code == il2cpp_native_bridge::ErrorCode::runtime_not_ready,
+        const auto core = INB::detail::refresh_core(context);
+        test_support::check(!core.has_value() && core.error().code == INB::ErrorCode::runtime_not_ready,
                             "core readiness must wait for the first loaded assemblies");
-        test_support::check(context->core.state == il2cpp_native_bridge::RuntimeState::initializing,
+        test_support::check(context->core.state == INB::RuntimeState::initializing,
                             "the core snapshot must report initializing while assemblies are not visible");
 
         fixture.set_assemblies_available(true);
-        test_support::check(il2cpp_native_bridge::detail::refresh_core(context).has_value(),
+        test_support::check(INB::detail::refresh_core(context).has_value(),
                             "core readiness must succeed once assemblies become visible");
     }
 }

@@ -19,7 +19,7 @@ struct Il2CppArray;
 struct Il2CppString;
 struct Il2CppThread;
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 struct Api {
     Il2CppDomain* (*domain_get)(){};
@@ -160,4 +160,4 @@ ResolvedExports resolve_exports(void* module,
                                 SymbolLookup lookup,
                                 const std::unordered_map<std::string, void*>& missing_symbol_overrides = {});
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

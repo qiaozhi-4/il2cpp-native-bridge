@@ -77,7 +77,7 @@ class Fixture {
 public:
     Fixture();
 
-    il2cpp_native_bridge::detail::Api api() const;
+    INB::detail::Api api() const;
     Il2CppDomain* domain() { return &domain_; }
     Il2CppClass* add_class(std::string assembly, std::string name_space, std::string name);
     /// 追加一个与已有 image 同名的新程序集，用于构造「同名程序集歧义」。

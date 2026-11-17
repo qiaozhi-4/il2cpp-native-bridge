@@ -2,7 +2,7 @@
 #include "../test_support.hpp"
 #include "il2cpp_native_bridge/bridge.hpp"
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 
 void run_member_lookup_tests() {
     fake_il2cpp::Fixture fixture;

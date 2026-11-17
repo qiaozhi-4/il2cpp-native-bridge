@@ -5,7 +5,7 @@
 
 #include <string_view>
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 
 static_assert(managed_type_name<UnityVector2> == "UnityEngine.Vector2");
 

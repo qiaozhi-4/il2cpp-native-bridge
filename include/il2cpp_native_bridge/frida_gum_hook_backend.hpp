@@ -5,7 +5,7 @@
 #include <functional>
 #include <memory>
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 /**
  * 初始化 Frida Gum（进程内只初始化一次）并创建 Hook backend。
@@ -42,4 +42,4 @@ Result<void> perform_when_ready_with_frida_gum_hook_backend(
     std::function<void(Result<void>)> completion,
     RuntimeWaitOptions options = {});
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

@@ -7,7 +7,7 @@
 #include <optional>
 #include <utility>
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 /**
  * 管理单个类型化 Hook，并在入口发布与 Hook 启停之间同步，避免替换函数过早读到空原函数。
@@ -97,4 +97,4 @@ private:
     std::atomic<Function> original_{nullptr};
 };
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

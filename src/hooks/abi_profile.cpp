@@ -6,7 +6,7 @@
 #include <cstring>
 #include <string_view>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 namespace {
 
 /// ECMA-335 MethodAttributes.Static；与 IL2CPP 布局无关。
@@ -186,4 +186,4 @@ Result<AbiProfile> resolve_abi_profile(const ReadyView& view) {
     return Result<AbiProfile>::success(std::move(profile));
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

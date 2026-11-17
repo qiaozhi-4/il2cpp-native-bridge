@@ -4,7 +4,7 @@
 
 #include <cstring>
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 
 void run_invocation_tests() {
     fake_il2cpp::Fixture fixture;

@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <string>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 struct ReadyView;
 
@@ -48,4 +48,4 @@ struct AbiProfile {
  */
 Result<AbiProfile> resolve_abi_profile(const ReadyView& view);
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

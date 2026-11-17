@@ -5,7 +5,7 @@
 #include <utility>
 #include <variant>
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 enum class ErrorCode {
     runtime_not_ready,
@@ -110,4 +110,4 @@ private:
     std::optional<Error> error_;
 };
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

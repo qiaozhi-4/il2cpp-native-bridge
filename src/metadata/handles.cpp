@@ -3,7 +3,7 @@
 
 #include <memory>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 Result<void> validate_class_handle(const ClassHandle& klass) {
     if (klass.native == nullptr || klass.context == nullptr) {
@@ -71,9 +71,9 @@ std::shared_ptr<RuntimeContext> current_runtime_context() {
     return context;
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 Runtime Runtime::current() {
     const auto context = detail::current_runtime_context();
@@ -248,4 +248,4 @@ Result<Il2CppObject*> ClassQuery::new_object() const {
     return detail::allocate_object(result_.value());
 }
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

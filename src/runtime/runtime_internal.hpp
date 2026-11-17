@@ -10,7 +10,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 /// 类解析缓存上限。超限时整体清空，避免长驻进程按查询次数无界增长。
 inline constexpr std::size_t kClassCacheLimit = 4096;
@@ -106,4 +106,4 @@ void cache_class(const std::shared_ptr<RuntimeContext>& context,
                  Il2CppClass* native,
                  std::string assembly_name);
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

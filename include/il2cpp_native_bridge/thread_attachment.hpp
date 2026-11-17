@@ -4,7 +4,7 @@
 
 #include <memory>
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 class Runtime;
 namespace detail {
@@ -38,4 +38,4 @@ private:
     std::unique_ptr<detail::ThreadLease> lease_;
 };
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

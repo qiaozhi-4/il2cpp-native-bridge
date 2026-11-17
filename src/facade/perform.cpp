@@ -5,7 +5,7 @@
 #include <string>
 #include <utility>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 namespace {
 
 /// 当前线程最内层的作用域；嵌套只记录前一层，不改变外层租约。
@@ -410,4 +410,4 @@ Result<void> submit_perform_request(std::function<Result<void>()> action,
     return submitted;
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

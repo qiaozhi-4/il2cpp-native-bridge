@@ -20,7 +20,7 @@
 
 namespace {
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 
 struct Check {
     std::string name;
@@ -86,7 +86,7 @@ std::string build_json(const std::vector<Check>& checks, std::string_view unity_
 
 /// 旧 Time smoke：单线程、旧接口，作为独立回归保留。
 std::vector<Check> legacy_checks() {
-    using namespace il2cpp_native_bridge;
+    using namespace INB;
     std::vector<Check> checks;
     auto runtime = Runtime::current();
     auto refreshed = runtime.refresh();
@@ -202,7 +202,7 @@ std::vector<Check> legacy_checks() {
 /// 被替换的托管方法：静态 int(int)。回调把它整体放大 40。
 std::atomic<int> g_replacement_calls{0};
 
-int replacement_overloaded(il2cpp_native_bridge::ReplacementCall<int, int>& call, int value) {
+int replacement_overloaded(INB::ReplacementCall<int, int>& call, int value) {
     g_replacement_calls.fetch_add(1, std::memory_order_relaxed);
     return call.original(value) + 40;
 }
@@ -213,7 +213,7 @@ int replacement_overloaded(il2cpp_native_bridge::ReplacementCall<int, int>& call
  * 失败通过返回值报告，由调用方转成 check 状态；这里不抛异常。
  */
 void facade_body(std::vector<Check>& checks) {
-    using namespace il2cpp_native_bridge;
+    using namespace INB;
 
     /// 同名类双程序集：按 image 限定解析，两个程序集的行为必须不同。
     auto tag_a = Il2Cpp::domain().assembly("ProbeA").image()
@@ -276,7 +276,7 @@ void facade_body(std::vector<Check>& checks) {
 
 /// 异步 perform：提交立即返回，完成在另一个线程到达。
 std::vector<Check> facade_checks() {
-    using namespace il2cpp_native_bridge;
+    using namespace INB;
     std::vector<Check> checks;
 
     std::mutex mutex;

@@ -5,7 +5,7 @@ struct UnsupportedProbe {
     int value;
 };
 
-void probe(const il2cpp_native_bridge::Method& method) {
+void probe(const INB::Method& method) {
     (void) method.typed<void, UnsupportedProbe>();
 }
 

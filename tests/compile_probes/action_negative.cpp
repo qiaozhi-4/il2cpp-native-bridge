@@ -2,7 +2,7 @@
 #include "il2cpp_native_bridge/il2cpp.hpp"
 
 void probe_perform() {
-    (void) il2cpp_native_bridge::Il2Cpp::perform([] { return 42; });
+    (void) INB::Il2Cpp::perform([] { return 42; });
 }
 
 int main() { return 0; }

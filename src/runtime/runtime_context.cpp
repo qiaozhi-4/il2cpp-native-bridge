@@ -5,7 +5,7 @@
 #include <set>
 #include <sstream>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 namespace {
 
 /// 导出解析阶段的结果：只有 ready 才能继续判断就绪。
@@ -307,4 +307,4 @@ void cache_class(const std::shared_ptr<RuntimeContext>& context,
     context->class_cache.insert_or_assign(std::move(key), ClassCacheEntry{native, std::move(assembly_name)});
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

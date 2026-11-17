@@ -4,7 +4,7 @@
 
 #include <string_view>
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 /**
  * 与 UnityEngine.Vector2 内存布局一致的二维浮点向量。
@@ -29,4 +29,4 @@ struct ManagedTypeName<UnityVector2> {
     static constexpr std::string_view value = "UnityEngine.Vector2";
 };
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

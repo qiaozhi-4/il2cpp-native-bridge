@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 enum class RuntimeState {
     waiting_for_module,
@@ -22,4 +22,4 @@ struct RuntimeSnapshot {
     std::string last_error;
 };
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

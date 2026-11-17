@@ -6,7 +6,7 @@
 #include <string>
 #include <thread>
 
-namespace il2cpp_native_bridge {
+namespace INB {
 namespace {
 
 RuntimeSnapshot snapshot_without_refresh(const std::shared_ptr<detail::RuntimeContext>& context) {
@@ -98,4 +98,4 @@ Result<void> Runtime::perform_when_ready(const std::function<Result<void>()>& ac
     return Result<void>::success();
 }
 
-} // namespace il2cpp_native_bridge
+} // namespace INB

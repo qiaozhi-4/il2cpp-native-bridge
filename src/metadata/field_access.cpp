@@ -1,6 +1,6 @@
 #include "metadata_internal.hpp"
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 Result<FieldHandle> resolve_field(const ClassHandle& klass,
                                   std::string_view name,
@@ -151,9 +151,9 @@ Result<void> write_boxed_field(const FieldHandle& field, Il2CppObject* boxed_val
     return Result<void>::success();
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 Result<void> FieldQueryBase::read_value(Il2CppObject* instance, void* destination, std::size_t size) const {
     if (!field_) return Result<void>::failure(field_.error());
@@ -171,4 +171,4 @@ Result<void> FieldQueryBase::write_boxed_value(Il2CppObject* boxed_value, Il2Cpp
     return write_boxed_field(field_.value(), boxed_value, instance);
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

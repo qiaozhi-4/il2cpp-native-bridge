@@ -21,7 +21,7 @@ C++ API 见 [`docs/api.md`](docs/api.md)，验证范围和证据边界见 [`docs
 ```cpp
 #include "il2cpp_native_bridge/il2cpp.hpp"
 
-void on_set_time_scale(il2cpp_native_bridge::ReplacementCall<void, float>& call, float value) {
+void on_set_time_scale(INB::ReplacementCall<void, float>& call, float value) {
     call.original(value * 2.0f);
 }
 

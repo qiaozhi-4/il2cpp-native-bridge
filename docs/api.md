@@ -8,7 +8,7 @@
 #include "il2cpp_native_bridge/frida_gum_hook_backend.hpp"
 #include "il2cpp_native_bridge/hook_slot.hpp"
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 
 auto runtime = Runtime::current();
 std::optional<HookHandle<void, float>> time_scale_hook;
@@ -78,7 +78,7 @@ if (classes) {
 ```cpp
 #include "il2cpp_native_bridge/hook_slot.hpp"
 
-il2cpp_native_bridge::HookSlot<void, float> time_scale_slot;
+INB::HookSlot<void, float> time_scale_slot;
 
 void set_time_scale(float value) {
     if (auto original = time_scale_slot.original()) original(value);
@@ -104,7 +104,7 @@ void set_time_scale(float value) {
 ```cpp
 #include "il2cpp_native_bridge/il2cpp.hpp"
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 
 // 替换回调必须是普通函数（无捕获）。
 void on_set_time_scale(ReplacementCall<void, float>& call, float value) {

@@ -27,13 +27,13 @@ inline void check(bool condition, std::string_view message) {
 class DiagnosticCapture {
 public:
     DiagnosticCapture() {
-        il2cpp_native_bridge::detail::set_diagnostic_sink([this](std::string_view line) {
+        INB::detail::set_diagnostic_sink([this](std::string_view line) {
             std::lock_guard lock(mutex_);
             lines_.emplace_back(line);
         });
     }
 
-    ~DiagnosticCapture() { il2cpp_native_bridge::detail::set_diagnostic_sink({}); }
+    ~DiagnosticCapture() { INB::detail::set_diagnostic_sink({}); }
 
     DiagnosticCapture(const DiagnosticCapture&) = delete;
     DiagnosticCapture& operator=(const DiagnosticCapture&) = delete;
@@ -62,26 +62,26 @@ private:
  */
 class FacadeHarness {
 public:
-    explicit FacadeHarness(il2cpp_native_bridge::detail::Api api, Il2CppDomain* domain = nullptr) {
-        context_ = il2cpp_native_bridge::detail::make_testing_context(std::move(api), domain);
+    explicit FacadeHarness(INB::detail::Api api, Il2CppDomain* domain = nullptr) {
+        context_ = INB::detail::make_testing_context(std::move(api), domain);
         context_->injected_api = true;
-        il2cpp_native_bridge::detail::install_facade_context(context_);
+        INB::detail::install_facade_context(context_);
     }
 
     ~FacadeHarness() {
-        il2cpp_native_bridge::detail::stop_facade_executor(context_);
-        il2cpp_native_bridge::detail::reset_facade_context();
+        INB::detail::stop_facade_executor(context_);
+        INB::detail::reset_facade_context();
     }
 
     FacadeHarness(const FacadeHarness&) = delete;
     FacadeHarness& operator=(const FacadeHarness&) = delete;
 
-    [[nodiscard]] const std::shared_ptr<il2cpp_native_bridge::detail::RuntimeContext>& context() const noexcept {
+    [[nodiscard]] const std::shared_ptr<INB::detail::RuntimeContext>& context() const noexcept {
         return context_;
     }
 
 private:
-    std::shared_ptr<il2cpp_native_bridge::detail::RuntimeContext> context_;
+    std::shared_ptr<INB::detail::RuntimeContext> context_;
 };
 
 /// 轮询等待谓词成立；用于替代靠 sleep 猜时序。
@@ -95,8 +95,8 @@ bool wait_until(Predicate&& predicate, std::chrono::milliseconds limit) {
 }
 
 /// 在 context 锁内读取 core 就绪状态；协调线程会并发改写它。
-inline il2cpp_native_bridge::RuntimeState core_state(
-        const std::shared_ptr<il2cpp_native_bridge::detail::RuntimeContext>& context) {
+inline INB::RuntimeState core_state(
+        const std::shared_ptr<INB::detail::RuntimeContext>& context) {
     std::lock_guard lock(context->mutex);
     return context->core.state;
 }
@@ -104,8 +104,8 @@ inline il2cpp_native_bridge::RuntimeState core_state(
 /// 一次作用域内操作的结果；异常在作用域内被捕获，带回调用线程断言。
 struct ScopeOutcome {
     bool ok{false};
-    il2cpp_native_bridge::ErrorCode code{il2cpp_native_bridge::ErrorCode::internal_error};
-    il2cpp_native_bridge::ErrorStage stage{il2cpp_native_bridge::ErrorStage::none};
+    INB::ErrorCode code{INB::ErrorCode::internal_error};
+    INB::ErrorStage stage{INB::ErrorStage::none};
     std::string path;
     std::string message;
     std::string name;
@@ -118,7 +118,7 @@ struct ScopeOutcome {
 
 /// 在 perform 作用域内执行操作，等 completion 之后再读取结果。
 inline ScopeOutcome run_in_scope(const std::function<void(ScopeOutcome&)>& body) {
-    using namespace il2cpp_native_bridge;
+    using namespace INB;
 
     ScopeOutcome outcome;
     std::mutex mutex;

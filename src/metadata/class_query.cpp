@@ -4,7 +4,7 @@
 #include <optional>
 #include <string_view>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 Result<ClassHandle> resolve_class(const std::shared_ptr<RuntimeContext>& context,
                                   std::string_view full_name,
@@ -313,4 +313,4 @@ Result<Il2CppObject*> allocate_object(const ClassHandle& klass) {
     return Result<Il2CppObject*>::success(instance);
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

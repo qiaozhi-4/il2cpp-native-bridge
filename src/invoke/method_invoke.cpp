@@ -1,6 +1,6 @@
 #include "metadata/metadata_internal.hpp"
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 Result<InvokeOutcome> invoke_raw(const MethodHandle& method, Il2CppObject* instance, std::span<void*> arguments) {
     auto valid = validate_method_handle(method);
@@ -23,4 +23,4 @@ Result<InvokeOutcome> invoke_raw(const MethodHandle& method, Il2CppObject* insta
     return Result<InvokeOutcome>::success(InvokeOutcome{value});
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

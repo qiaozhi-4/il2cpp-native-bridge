@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 
 namespace {
 

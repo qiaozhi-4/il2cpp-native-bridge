@@ -4,7 +4,7 @@
 
 #include <mutex>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 namespace {
 
 /**
@@ -69,4 +69,4 @@ const ManagedGumProvider kProvider{true, gum_install, gum_revert, gum_flush, gum
 
 const ManagedGumProvider& managed_gum_provider() { return kProvider; }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

@@ -1,6 +1,6 @@
 #include "runtime_internal.hpp"
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 ThreadLease::ThreadLease(ThreadLease&& other) noexcept
     : context(std::move(other.context)), thread(other.thread), owns_attachment(other.owns_attachment) {
@@ -79,4 +79,4 @@ Result<ThreadLease> acquire_thread(const std::shared_ptr<RuntimeContext>& contex
     return Result<ThreadLease>::success(ThreadLease{context, attached, true});
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

@@ -7,7 +7,7 @@
 
 #include <dlfcn.h>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 namespace {
 
 bool executable_address(void* address) {
@@ -59,4 +59,4 @@ Result<void*> resolve_entry_point(const MethodHandle& method) {
     return resolve_entry_point_address(method.native);
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

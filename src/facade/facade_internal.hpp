@@ -15,7 +15,7 @@
 #include <string_view>
 #include <thread>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 /// 一次 perform 请求的排队上限，不含正在执行的请求。
 inline constexpr std::size_t kPerformQueueCapacity = 128;
@@ -139,4 +139,4 @@ void reset_facade_context();
 /// 测试 Harness 使用：停机并 join 该 context 的执行器；没有执行器时为空操作。
 void stop_facade_executor(const std::shared_ptr<RuntimeContext>& context);
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

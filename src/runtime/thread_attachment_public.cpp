@@ -1,7 +1,7 @@
 #include "runtime_internal.hpp"
 #include "il2cpp_native_bridge/bridge.hpp"
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 ThreadAttachment::ThreadAttachment(std::unique_ptr<detail::ThreadLease> lease) : lease_(std::move(lease)) {}
 ThreadAttachment::ThreadAttachment(ThreadAttachment&&) noexcept = default;
@@ -15,4 +15,4 @@ Result<ThreadAttachment> ThreadAttachment::attach(const Runtime& runtime) {
         ThreadAttachment(std::make_unique<detail::ThreadLease>(lease.take_value())));
 }
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

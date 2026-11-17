@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cstring>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 Result<std::vector<MethodMetadata>> resolve_methods(const ClassHandle& klass) {
     auto valid = validate_class_handle(klass);
@@ -214,9 +214,9 @@ Result<MethodHandle> resolve_method_by_arity(const ClassHandle& klass,
     return Result<MethodHandle>::success(std::move(result));
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 Result<Il2CppObject*> MethodQueryBase::invoke_value(Il2CppObject* instance, std::span<void*> arguments) const {
     if (!method_) return Result<Il2CppObject*>::failure(method_.error());
@@ -252,4 +252,4 @@ Result<std::shared_ptr<HookState>> MethodQueryBase::install_value(std::shared_pt
     return install_hook(method_.value(), std::move(backend), replacement);
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

@@ -7,7 +7,7 @@
 #include <memory>
 #include <mutex>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 struct HookState {
     /// 串行化 backend 的移除调用；不保护 original 的读取。
@@ -28,4 +28,4 @@ Result<std::shared_ptr<HookState>> install_hook(const MethodHandle& method,
                                                 std::shared_ptr<HookBackend> backend,
                                                 void* replacement);
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

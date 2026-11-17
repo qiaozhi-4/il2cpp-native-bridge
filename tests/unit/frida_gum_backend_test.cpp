@@ -2,7 +2,7 @@
 #include "il2cpp_native_bridge/frida_gum_hook_backend.hpp"
 #include "../test_support.hpp"
 
-using namespace il2cpp_native_bridge;
+using namespace INB;
 
 namespace {
 

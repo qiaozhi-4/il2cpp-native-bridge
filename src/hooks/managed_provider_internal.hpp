@@ -3,7 +3,7 @@
 #include "il2cpp_native_bridge/il2cpp.hpp"
 #include "il2cpp_native_bridge/result.hpp"
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 /**
  * 固定 Gum provider 的最小接缝。
@@ -41,4 +41,4 @@ ReplacementState replacement_state_of(const std::shared_ptr<RuntimeContext>& con
                                       const std::vector<MethodDescriptor>& candidates,
                                       const std::string& path);
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

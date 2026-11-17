@@ -4,7 +4,7 @@
 
 #include <memory>
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 /** 通过原生入口地址安装和移除函数替换的后端接口。 */
 class HookBackend {
@@ -34,4 +34,4 @@ struct HookState;
 Result<void> remove_hook(const std::shared_ptr<HookState>& state);
 }
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

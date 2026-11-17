@@ -4,7 +4,7 @@
 
 #include <unordered_map>
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 namespace {
 
 /// Hook 注册表。
@@ -112,4 +112,4 @@ Result<void> remove_hook(const std::shared_ptr<HookState>& state) {
     return Result<void>::success();
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail

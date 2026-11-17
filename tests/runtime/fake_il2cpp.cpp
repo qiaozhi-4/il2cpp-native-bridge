@@ -152,8 +152,8 @@ Fixture::Fixture() {
         });
 }
 
-il2cpp_native_bridge::detail::Api Fixture::api() const {
-    il2cpp_native_bridge::detail::Api result;
+INB::detail::Api Fixture::api() const {
+    INB::detail::Api result;
     result.domain_get = domain_get;
     result.domain_get_assemblies = domain_get_assemblies;
     result.assembly_get_image = assembly_get_image;

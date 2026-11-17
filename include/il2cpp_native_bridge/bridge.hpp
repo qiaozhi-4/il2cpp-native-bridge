@@ -27,7 +27,7 @@ struct Il2CppMethodInfo;
 struct Il2CppObject;
 struct Il2CppString;
 
-namespace il2cpp_native_bridge {
+namespace INB {
 
 class ClassQuery;
 class Runtime;
@@ -399,4 +399,4 @@ FieldQuery<T> ClassQuery::field(std::string_view name) const {
     return FieldQuery<T>(find_field(name, managed_type_name<T>));
 }
 
-} /// namespace il2cpp_native_bridge
+} /// namespace INB

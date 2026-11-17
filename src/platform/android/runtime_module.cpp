@@ -10,7 +10,7 @@
 #include <vector>
 #endif
 
-namespace il2cpp_native_bridge::detail {
+namespace INB::detail {
 
 #if defined(__ANDROID__) || (defined(__linux__) && !defined(__ANDROID__))
 namespace {
@@ -108,4 +108,4 @@ void* lookup_runtime_symbol(void* module, const char* name) {
     return module == nullptr || name == nullptr ? nullptr : dlsym(module, name);
 }
 
-} /// namespace il2cpp_native_bridge::detail
+} /// namespace INB::detail
