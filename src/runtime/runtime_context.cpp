@@ -36,7 +36,9 @@ enum class LogPoint : unsigned {
 }
 
 /**
- * 首次到达某个日志点时打印状态；detail 以回调延迟构造，日志编译关闭时连字符串都不会生成。
+ * 首次到达某个日志点时打印状态；detail 以回调延迟构造，轨迹关闭时连字符串都不会生成。
+ *
+ * unsupported 始终记录；其余状态只在轨迹构建输出。
  *
  * @param context 当前运行时 context。
  * @param point 迁移日志点。
@@ -45,24 +47,27 @@ enum class LogPoint : unsigned {
  */
 template <typename Detail>
 void log_state_once(RuntimeContext& context, LogPoint point, RuntimeState state, Detail detail) {
-    if constexpr (INB_LOG_ENABLED) {
-        const auto bit = static_cast<unsigned>(point);
-        if ((context.logged_points & bit) != 0) return;
-        context.logged_points |= bit;
+    const bool is_error = state == RuntimeState::unsupported;
+    if constexpr (!INB_LOG_ENABLED) {
+        /// 只留错误的构建里，其余状态连去重和文本构造都省掉。
+        if (!is_error) return;
+    }
 
-        const std::string message = detail();
+    const auto bit = static_cast<unsigned>(point);
+    if ((context.logged_points & bit) != 0) return;
+    context.logged_points |= bit;
+
+    const std::string message = detail();
+    if (is_error) {
+        INB_LOGE("runtime unsupported: %s", message.c_str());
+        return;
+    }
+    if constexpr (INB_LOG_ENABLED) {
         if (state == RuntimeState::ready) {
             INB_LOGI("runtime ready: %s", message.c_str());
-        } else if (state == RuntimeState::unsupported) {
-            INB_LOGE("runtime unsupported: %s", message.c_str());
         } else {
             INB_LOGD("runtime %s: %s", state_name(state), message.c_str());
         }
-    } else {
-        (void) context;
-        (void) point;
-        (void) state;
-        (void) detail;
     }
 }
 

@@ -9,7 +9,7 @@
 - 托管方法替换（implementation）与恢复（revert），由库强拥有替换记录。
 - 异步统一入口 `Il2Cpp::perform`，内部完成等待运行时、附加线程、选择后端和进入访问作用域。
 - 运行时状态快照、能力检测和结构化错误，便于诊断与重试决策。
-- Debug 构建用 `INB` 标签输出 logcat 轨迹：首次解析的导出表、类/方法/字段解析、Hook 安装与 `perform` 生命周期，同一查询只打印一次；关闭时整段日志不参与编译。
+- Debug 构建用 `INB` 标签输出 logcat 轨迹：首次解析的导出表、类/方法/字段解析、Hook 安装与 `perform` 生命周期，同一查询只打印一次；Release 只保留错误行，轨迹全部编译期丢弃。
 
 ## 快速上手
 
@@ -69,9 +69,9 @@ int main() {
 
 ## 平台与依赖
 
-- 产品目标为 Android `arm64-v8a`；其他 Android ABI 会在配置阶段报错。主机端构建用于集成示例与开发调试。
+- 产品目标为 Android `arm64-v8a`；其他 Android ABI 会在配置阶段报错。库只面向 Android 构建：日志直接依赖 `<android/log.h>`，符号查找依赖 `<dlfcn.h>`，没有 host 构建。
 - 目标兼容范围为 Unity 5.3.0–6000.3.x。ABI profile 按 family 与版本分级：`modern-static` 的已验证版本为 `approved`，同 family 其他版本为 `candidate`，`legacy-static-slot`（5.3–2018.2）为 `rejected`。支持范围与前提见 [`docs/compatibility.md`](docs/compatibility.md)。
-- Android 构建链接固定版本的 Frida Gum 17.23.3 官方预编译 devkit。仓库只提交约 10 MB 的官方压缩包 [`frida-gum-devkit-17.23.3-android-arm64.tar.xz`](third_party/frida-gum/17.23.3/android-arm64)，CMake 在配置阶段校验其 SHA-256、解压到构建目录并校验解压后 `libfrida-gum.a` 的 SHA-256，再参与链接。配置与构建都不联网，也不从源码构建 Gum。改用自备 devkit 时设置 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT`。主机端构建不链接 Android Gum 工具包。
+- Android 构建链接固定版本的 Frida Gum 17.23.3 官方预编译 devkit。仓库只提交约 10 MB 的官方压缩包 [`frida-gum-devkit-17.23.3-android-arm64.tar.xz`](third_party/frida-gum/17.23.3/android-arm64)，CMake 在配置阶段校验其 SHA-256、解压到构建目录并校验解压后 `libfrida-gum.a` 的 SHA-256，再参与链接。配置与构建都不联网，也不从源码构建 Gum。改用自备 devkit 时设置 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT`。
 - 库使用 Gum 的原生 C Hook 能力，不包含 Frida Gadget、frida-core、GumJS 或 JavaScript 引擎。桥接本身不依赖 GameBox 或 BNM；使用方可以独立选择各自的 Hook 方案。
 
 ## 构建

@@ -33,18 +33,15 @@ void* resolve_symbol(void* module,
 }
 
 /// 参考 BNM 的 INIT_IL2CPP_API：每个导出解析出结果就打一行，附带可跨进程比对的模块偏移。
-[[maybe_unused]] void log_export(const char* symbol, void* address, bool required) {
+/// 必需导出缺失始终记录；逐符号明细只在轨迹构建输出。
+void log_export(const char* symbol, void* address, bool required) {
+    if (address == nullptr && required) INB_LOGE("export %s: missing", symbol);
     if constexpr (INB_LOG_ENABLED) {
         if (address == nullptr) {
-            if (required) INB_LOGE("export %s: missing", symbol);
-            else INB_LOGD("export %s: missing (optional capability)", symbol);
+            INB_LOGD("export %s: missing (optional capability)", symbol);
         } else {
             INB_LOGD("export %s: %p (+0x%zx)", symbol, address, symbol_offset(address));
         }
-    } else {
-        (void) symbol;
-        (void) address;
-        (void) required;
     }
 }
 

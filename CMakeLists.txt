@@ -22,7 +22,7 @@ option(IL2CPP_NATIVE_BRIDGE_SANITIZE
         "Sanitizer list for the library, for example address,undefined"
         "")
 option(IL2CPP_NATIVE_BRIDGE_ENABLE_LOGCAT
-        "Emit INB-tagged logcat diagnostics for bridge failures in Android Debug builds"
+        "Emit INB-tagged logcat diagnostics: full traces in Debug builds, errors only otherwise"
         ${ANDROID})
 
 if (ANDROID)
@@ -90,9 +90,8 @@ target_include_directories(il2cpp_native_bridge
 set_target_properties(il2cpp_native_bridge PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(il2cpp_native_bridge PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
 
-# 日志：参考 BNM 的编译期开关，只在 Android Debug 构建打 INB 标签的 logcat。
-# INB_ENABLE_LOGCAT 是该头文件的唯一开关，日志头会一并引入 <android/log.h>，
-# 因此 host 构建与单测不要定义它：未定义时日志宏展开为空操作，行为保持不变。
+# 日志：参考 BNM 的编译期开关，打 INB 标签的 logcat。
+# 只有两档：Debug 定义 INB_ENABLE_LOGCAT 输出全量轨迹；其余配置不定义，只留错误。
 if (ANDROID AND IL2CPP_NATIVE_BRIDGE_ENABLE_LOGCAT)
     target_compile_definitions(il2cpp_native_bridge PRIVATE
             "$<$<CONFIG:Debug>:INB_ENABLE_LOGCAT>")
