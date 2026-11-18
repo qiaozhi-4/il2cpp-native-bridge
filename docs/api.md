@@ -103,7 +103,7 @@ void on_set_time_scale(INB::ReplacementCall<void, float>& call, float value) {
 
 `revert()` 恢复当前 managed target，成功后再调用走原实现；重复恢复成功。`replacement_state()` 返回当前替换状态：`not_installed`、`installing`、`active`、`reverting`、`draining`。恢复发出但仍有调用停留在旧入口时抛 `restore_pending`，可在调用排空后重试。同一地址同时只能有一个所有者：已被底层 Hook 或另一替换占用时报 `owner_conflict`；名额上限为 256，耗尽时报 `resource_exhausted`。
 
-**byref/ref/out 的绑定**：`implementation` 允许用 C++ 指针载体绑定 byref 参数，条件是该指针有托管类型名映射且基础名精确等于去掉 `&` 的托管参数名。例如 `bool*` 映射为 `System.Boolean`，对应托管参数 `System.Boolean&`。native ABI 本就按地址透传，其余不匹配情况在绑定期拒绝。
+**byref/ref/out 的绑定**：`implementation` 允许用 C++ 指针载体绑定 byref 参数，条件是该指针有托管类型名映射且基础名精确等于去掉 `&` 的托管参数名。库已为基础值类型内置指针载体映射，例如 `bool*` → `System.Boolean`（对应托管参数 `System.Boolean&`）、`std::int32_t*` → `System.Int32`（对应 `System.Int32&`）；其余类型需自行特化。native ABI 本就按地址透传，不匹配情况在绑定期拒绝。
 
 **部署前提**：首次调用 `implementation` 会读取 `UnityEngine.Application.get_unityVersion` 选择 ABI profile。IL2CPP 只为可达方法生成代码，宿主必须保留该 getter（托管侧引用一次，或在 `link.xml` 中保留），否则替换以 `not_found` 被拒绝；查询与 `invoke` 不受影响。
 
@@ -119,7 +119,7 @@ template <> struct ManagedTypeName<MyStruct> {
 }
 ```
 
-内建映射覆盖 `void`、`bool`、各宽度整型、`float`、`double`、`Il2CppObject*`（`System.Object`）与 `Il2CppString*`（`System.String`）。`managed_type_name<T>` 变量模板免去书写 `ManagedTypeName<remove_cvref_t<T>>::value`。byref 场景还需为指针载体本身提供映射，见上节。
+内建映射覆盖 `void`、`bool`、各宽度整型、`float`、`double`、`Il2CppObject*`（`System.Object`）与 `Il2CppString*`（`System.String`），以及上述基础值类型的指针载体（用于 byref/ref/out）。`managed_type_name<T>` 变量模板免去书写 `ManagedTypeName<remove_cvref_t<T>>::value`。自定义类型作为指针载体时仍需自行特化，见上节。
 
 库提供 `INB::UnityVector2`，其内存布局与 `UnityEngine.Vector2` 一致（两个连续 `float`），可直接用于按值传参与返回，并已带好类型名映射。布局带有静态断言，不要改动字段顺序或数量。
 
