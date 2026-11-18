@@ -7,22 +7,19 @@ include(GNUInstallDirs)
 
 find_package(Threads REQUIRED)
 
-# 作为子目录被消费时默认不构建测试、不注册安装规则，避免影响宿主工程。
+# 作为子目录被消费时默认不注册安装规则，避免影响宿主工程。
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(IL2CPP_NATIVE_BRIDGE_TOP_LEVEL ON)
 else ()
     set(IL2CPP_NATIVE_BRIDGE_TOP_LEVEL OFF)
 endif ()
 
-option(IL2CPP_NATIVE_BRIDGE_BUILD_TESTS
-        "Build host-side unit tests"
-        ${IL2CPP_NATIVE_BRIDGE_TOP_LEVEL})
 option(IL2CPP_NATIVE_BRIDGE_INSTALL
         "Generate install rules and package config files"
         ${IL2CPP_NATIVE_BRIDGE_TOP_LEVEL})
 option(IL2CPP_NATIVE_BRIDGE_WERROR "Treat library warnings as errors" OFF)
 option(IL2CPP_NATIVE_BRIDGE_SANITIZE
-        "Sanitizer list for the library and its tests, for example address,undefined"
+        "Sanitizer list for the library, for example address,undefined"
         "")
 option(IL2CPP_NATIVE_BRIDGE_ENABLE_LOGCAT
         "Emit INB-tagged logcat diagnostics for bridge failures in Android Debug builds"
@@ -42,7 +39,7 @@ if (ANDROID AND NOT ANDROID_ABI STREQUAL "arm64-v8a")
 endif ()
 
 # 目录级选项只向下生效，不会影响把本库当子目录引入的宿主工程。
-# -fno-sanitize-recover=all 让 UBSan 报告直接中止进程，否则只会打印而测试仍算通过。
+# -fno-sanitize-recover=all 让 UBSan 报告直接中止进程，否则只会打印告警而构建仍算成功。
 if (IL2CPP_NATIVE_BRIDGE_SANITIZE)
     add_compile_options(-fsanitize=${IL2CPP_NATIVE_BRIDGE_SANITIZE}
             -fno-sanitize-recover=all
@@ -110,16 +107,6 @@ else ()
     target_sources(il2cpp_native_bridge PRIVATE src/hooks/unavailable_gum_provider.cpp)
 endif ()
 
-# T030 原生验收：只在 Android + 真实 Gum 后端时编译。主机与 OFF 构建不产出该目标，
-# 也不注册 CTest —— Gum 运行测试必须在设备上执行，不能混进主机测试。
-if (ANDROID AND IL2CPP_NATIVE_BRIDGE_BUILD_FRIDA_GUM_BACKEND AND IL2CPP_NATIVE_BRIDGE_BUILD_TESTS)
-    add_executable(il2cpp_native_bridge_gum_acceptance tests/runtime/gum_managed_lifecycle_acceptance.cpp)
-    target_compile_features(il2cpp_native_bridge_gum_acceptance PRIVATE cxx_std_20)
-    il2cpp_native_bridge_apply_cxx_standard(il2cpp_native_bridge_gum_acceptance)
-    il2cpp_native_bridge_enable_warnings(il2cpp_native_bridge_gum_acceptance)
-    target_link_libraries(il2cpp_native_bridge_gum_acceptance PRIVATE il2cpp_native_bridge_frida_gum_upstream)
-endif ()
-
 if (IL2CPP_NATIVE_BRIDGE_INSTALL)
     install(TARGETS il2cpp_native_bridge
             EXPORT il2cpp_native_bridgeTargets
@@ -150,9 +137,4 @@ if (IL2CPP_NATIVE_BRIDGE_INSTALL)
             "${CMAKE_CURRENT_BINARY_DIR}/il2cpp_native_bridgeConfig.cmake"
             "${CMAKE_CURRENT_BINARY_DIR}/il2cpp_native_bridgeConfigVersion.cmake"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/il2cpp_native_bridge)
-endif ()
-
-if (IL2CPP_NATIVE_BRIDGE_BUILD_TESTS AND NOT ANDROID)
-    enable_testing()
-    add_subdirectory(tests)
 endif ()

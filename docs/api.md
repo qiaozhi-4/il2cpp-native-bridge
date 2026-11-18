@@ -1,155 +1,235 @@
 # C++ 接入 API
 
-桥接层通过运行时导出函数解析 IL2CPP 元数据。调用方无需提供 Unity 版本、原始元数据指针或原生地址。
+库提供两层公开接口，共享同一个运行时 context：
 
-```cpp
-#include <optional>
-#include "il2cpp_native_bridge/bridge.hpp"
-#include "il2cpp_native_bridge/frida_gum_hook_backend.hpp"
-#include "il2cpp_native_bridge/hook_slot.hpp"
+- **统一门面**（`il2cpp_native_bridge/il2cpp.hpp`）：一次 `Il2Cpp::perform` 完成等待就绪、附加线程、查询、调用与替换，库内部处理作用域、后端与生命周期。下文先介绍这一层。
+- **底层 API**（`bridge.hpp` 等头文件）：显式编排线程附加、等待策略、Hook 保活与后端选择。见[底层 API](#底层-api)。
 
-using namespace INB;
+C++ 命名空间统一为 `INB`。头文件目录与 CMake 目标名保持 `il2cpp_native_bridge`。所有并行头文件均可单独包含。
 
-auto runtime = Runtime::current();
-std::optional<HookHandle<void, float>> time_scale_hook;
-auto hook_result = runtime.with_attached_thread([&]() -> Result<void> {
-    return with_frida_gum_hook_backend([&](const auto& backend) -> Result<void> {
-        auto time = runtime.klass("UnityEngine.Time");
-        auto setter = time.method<void, float>("set_timeScale");
-        auto installed = setter.hook(backend, replacement);
-        if (!installed) return Result<void>::failure(installed.error());
-        time_scale_hook.emplace(installed.take_value());
-        return Result<void>::success();
-    });
-});
-if (!hook_result) return;
-```
+## 统一门面（`il2cpp.hpp`）
 
-`time_scale_hook` 应保存在组件状态中，并保持有效直到显式移除或组件清理。
+### 提交动作
 
-`klass` 会搜索已加载的程序集，并要求结果唯一。需要缩小搜索范围时可使用 `in_assembly(...)`。`method<Return, Args...>` 按精确的托管签名选择方法；找不到方法或匹配结果不唯一时会返回错误，不会静默选择某个重载。`field<T>(name)` 通过 IL2CPP 字段 API 提供有类型的静态或实例字段读写。
-
-`Runtime::with_attached_thread(action)` 在调用 `action` 前检查 IL2CPP runtime 是否就绪，并在整个回调期间确保当前线程已附加；若线程由 bridge 附加，会在回调结束时自动分离。runtime 未就绪或线程附加失败时，action 不会执行并返回对应错误。该接口不会等待 runtime、切换到 Unity 主线程或安排重试，调用方仍负责认证、渲染等宿主条件和重试策略。需要控制更长线程附加生命周期时，仍可直接使用 `ThreadAttachment::attach(runtime)`。
-
-若 Hook 初始化需要等待 Unity 加载，可调用 `Runtime::perform_when_ready(action, completion, options)`。bridge 会在后台线程轮询模块、`il2cpp_get_corlib` 和程序集状态；等待超过 `options.timeout` 时最多调用一次 `options.on_timeout`，随后继续等待，直到 runtime 就绪或发现不支持的运行时。就绪后 bridge 自动附加线程并且只执行一次 action。action、线程附加或 backend 安装返回错误时，结果交给 completion，不会重新执行 action。启动成功后 completion 恰好调用一次；启动失败时直接返回错误，不调用 completion。
-
-使用 Frida Gum 安装 Hook 时，可改用 `perform_when_ready_with_frida_gum_hook_backend(runtime, action, completion, options)`。该接口组合上述等待与线程附加流程，并在就绪后创建和检查 Gum backend；backend 不可用或 action 失败时只将错误交给 completion，不会重试安装。
-
-GameBox 等使用自定义 ELF 扫描器的宿主，可以通过 `Runtime::set_symbol_lookup(module, lookup, is_ready)` 注册解析器和就绪检查。该方法只设置解析器，不做初始化等待；必须在调用任何 runtime 操作之前调用，参数为空或 runtime 已进入 ready 时记录诊断并终止进程。以**完全相同**的三个参数重复调用没有副作用。
-
-需要构造托管闭合泛型类时，`Runtime::generic_class(...)` 接受开放泛型类名、类型实参和可选程序集名。它通过 IL2CPP reflection 将开放类与类型实参转换成闭合类句柄，随后可沿用普通类查询 API：
-
-```cpp
-constexpr std::array<std::string_view, 1> arguments{"System.UInt32"};
-auto list_class = runtime.generic_class("System.Collections.Generic.List`1", arguments, "mscorlib");
-auto list = list_class.new_object();
-if (list) (void) list_class.method<void>(".ctor", 0).invoke_on(list.value());
-```
-
-此操作需要 `il2cpp_class_get_type`、`il2cpp_type_get_object`、`il2cpp_array_new` 和 `il2cpp_class_from_system_type` 等 reflection 导出；缺少所需导出时会返回 `missing_api`。
-
-## 只读元数据查看
-
-调试代码可显式枚举已加载 images 中的类，再查看类名、程序集名、方法签名和字段元数据：
-
-```cpp
-auto classes = runtime.classes("Torappu.Battle");
-if (classes) {
-    for (const auto& klass : classes.value()) {
-        LOGD("%.*s [%.*s]", static_cast<int>(klass.full_name().size()), klass.full_name().data(),
-             static_cast<int>(klass.assembly_name().size()), klass.assembly_name().data());
-        auto methods = klass.methods();
-        auto fields = klass.fields();
-        /// 按需记录 methods.value() 与 fields.value() 中的元数据。
-    }
-}
-```
-
-`Runtime::classes(filter)` 按托管完整类名子串过滤当前已加载的类；空字符串会枚举全部类。`ClassQuery::methods()` 返回每个方法的名称、返回类型、参数类型和静态标记；字段信息沿用 `fields()`。枚举只在显式调用时执行。该能力依赖可选的 `il2cpp_image_get_class_count` 和 `il2cpp_image_get_class` exports；缺失时返回 `missing_api`，不会影响普通类查询、调用或 Hook。它不扫描 GC 堆或读取任意托管对象。
-
-如果托管参数类型暂时未知，可用 `method<Return, Args...>(name, parameter_count)` 按名称和参数数目查找；同名同参数数目的方法仍会返回歧义错误。实例方法可用 `hook_instance(...)` 安装 Hook，替换函数的第一个参数是 `Il2CppObject* this`。`Runtime::klass_of(instance)` 可取得对象的实际类；`fields()` 返回该类的字段元数据，`object_field(name)` 用于读取对象引用字段，`boxed_field(name)` 配合 `set_boxed(...)` 将已构造的装箱值写入值类型字段。`new_object()` 按类分配托管对象，可再通过构造函数初始化。
-
-带类型的 Hook 替换函数会接收托管方法对应的原生参数。需要转发到原方法时，在替换函数中调用 `HookHandle::original()`。Hook 生效期间必须保留其句柄；`remove()` 可显式调用且可重复调用，句柄析构时也会移除仍生效的 Hook。析构时无法向调用方报告移除错误；需要处理错误时应显式调用 `remove()`。
-
-需要长期持有 Hook 时可用 `HookSlot<Return, Args...>`：它串行化 `install()` 与 `remove()`，并在安装返回前发布原函数入口，避免替换函数读到尚未就绪的跳板。`install(installer)` 幂等，`original()` 是单次原子读取，`remove()` 可重复调用。
-
-**替换函数必须自行判空。** Gum 可能在 `install()` 返回前就启用替换函数，移除成功后入口也会被清空；这两种情况下 `original()` 都返回 `nullptr`，此时应直接返回，不要通过空指针转发。
-
-```cpp
-#include "il2cpp_native_bridge/hook_slot.hpp"
-
-INB::HookSlot<void, float> time_scale_slot;
-
-void set_time_scale(float value) {
-    if (auto original = time_scale_slot.original()) original(value);
-}
-
-(void) time_scale_slot.install([&] { return setter.hook(backend, set_time_scale); });
-```
-
-`make_frida_gum_hook_backend()` 会初始化已链接的 Frida Gum C 运行时（只初始化一次），并返回使用 Gum `Interceptor.replace` 和 `Interceptor.revert` 的 `HookBackend`；若无法取得 Gum interceptor 则返回空指针。`with_frida_gum_hook_backend(action)` 会统一创建并检查 backend，只在 backend 可用时调用 action，backend 不可用时返回 `hook_backend_unavailable`。这是原生 C 库依赖，不使用 Gadget、frida-core、GumJS 或 JavaScript 运行时。如果使用方只需要查询、字段访问和方法调用，可以不构建 Gum 构建目标；调用 Hook 时必须链接 `il2cpp_native_bridge_frida_gum`。
-
-## 运行时状态与错误
-
-调用 `Runtime::snapshot()` 查看运行时就绪状态和能力检测结果。如果 `libil2cpp.so` 可能在上次检查后才加载，请调用 `Runtime::refresh()`。各项操作返回 `Result<T>`，读取结果前应先检查状态。缺失的导出函数、运行时未就绪、成员不存在、重载不唯一、实例无效、不支持的方法入口以及 Gum Hook 失败，都会作为明确错误返回。
-
-如果目标运行时缺少一个已知 IL2CPP 导出，可在首次调用 `Runtime::current()` 前调用 `Runtime::set_export_override("il2cpp_symbol", address)` 提供回退地址。只有模块符号查找失败时才使用该地址；运行时进入 `ready` 后不再接受配置。调用方需要确认回退地址属于当前进程中兼容的 IL2CPP 实现。
-
-完整的 `set_timeScale` 调用流程见 [`examples/standalone`](../examples/standalone)。
-
-## 新门面（`il2cpp_native_bridge/il2cpp.hpp`）
-
-新门面把「等待运行时、附加线程、选后端、持有 Hook」这些步骤收进库内部，调用方只写一次 `perform`：
+`Il2Cpp::perform` 把所有动作提交到库的协调线程，异步、FIFO、串行执行。返回值只表示提交是否被接受，不代表动作已执行或替换已安装。
 
 ```cpp
 #include "il2cpp_native_bridge/il2cpp.hpp"
 
-using namespace INB;
-
-// 替换回调必须是普通函数（无捕获）。
-void on_set_time_scale(ReplacementCall<void, float>& call, float value) {
-    call.original(value * 2.0f);
+// 替换回调是无捕获的普通函数；签名由被替换方法的返回类型与参数决定。
+void on_set_time_scale(INB::ReplacementCall<void, float>& call, float value) {
+    if (value > 0.0f) call.original(value);  // 保留实例与隐藏 MethodInfo 转发原实现
 }
 
-Il2Cpp::perform([] {
-    auto time = Il2Cpp::domain()
+auto submitted = INB::Il2Cpp::perform([] {
+    auto time = INB::Il2Cpp::domain()
                         .assembly("UnityEngine.CoreModule")
                         .image()
                         .klass("UnityEngine.Time");
 
-    time.method("setTimeScale", 1).invoke<void, float>(0.5f);
-    float observed = time.method("getTimeScale", 0).invoke<float>();
+    auto setter = time.method("set_timeScale", 1);
+    auto getter = time.method("get_timeScale", 0);
 
-    auto setter = time.method("setTimeScale", 1);
-    setter.implementation(&on_set_time_scale);   // 安装托管方法替换
-    setter.revert();                             // 恢复原实现
+    setter.invoke<void, float>(0.5f);
+    (void) getter.invoke<float>();
+
+    setter.implementation(&on_set_time_scale);  // 安装托管方法替换
+    setter.revert();                            // 恢复原实现
 });
 ```
 
-要点：
+两个重载：
 
-- **作用域**：`Il2Cpp::perform` 的动作在库的协调线程上执行，动作内自动处于访问作用域；
-  替换回调内同样自动建立作用域，可以直接继续调用 `Il2Cpp::domain()`。
-- **异步**：`perform` 只表示「提交被接受」，完成通过 completion 回调送达；不要在 Unity 主线程同步等待。
-- **重载**：常用 `perform(action)` 不传结果与诊断参数，失败由默认诊断报告；需要观察最终结果或等待阈值时用 `perform(action, completion, options)`。
-- **对象链**：`domain → assembly → image → klass → method`，类解析限定在选定 image 内，
-  因此同名类在不同程序集里不会互相污染。`method(name, arity)` 返回候选集，签名不唯一时用 `overload(...)` 或 `typed<R, Args...>()` 收窄。
-- **错误**：第一个失败环节抛 `BridgeError`，动作边界转成 `Result<void>`；诊断行格式为
-  `[il2cpp-native-bridge] stage=… path=… category=… message=…`。
-- **不支持即拒绝**：泛型方法、无类型名映射的 C++ 类型在绑定期拒绝；缺少必要 IL2CPP
-  导出时报 `missing_api`，不会退回猜测。
-- **byref/ref/out**：`invoke` 与 `typed` 仍拒绝。`implementation` 允许用 C++ 指针载体绑定，
-  条件是该指针有托管类型名映射且名字精确等于去掉 `&` 的托管参数名（例如 `bool* → System.Boolean`
-  对应 `System.Boolean&`）；native ABI 本就按地址透传，其余不匹配情况仍在绑定期拒绝。
+- `perform(action)`：等价于三参重载传空 completion 与默认选项；失败由默认诊断报告。
+- `perform(action, completion, options)`：需要观察结果或等待阈值时使用。
 
-### 部署要求
+动作只能返回 `void` 或 `INB::Result<void>`，其他返回类型在编译期拒绝。动作抛出的 `BridgeError` 或标准异常在工作线程边界转换为失败的 `Result<void>`，不会传播到提交方。`completion` 在协调线程执行，但已离开访问作用域，且至多调用一次；它抛出的异常只被报告，不改变结果或重跑动作。返回值在队列已满、执行器停机或参数非法时返回失败。
 
-`implementation` 首次调用时会读取 `UnityEngine.Application.get_unityVersion` 来选择 ABI profile。
-IL2CPP 只为**可达**方法生成代码，因此宿主必须保留该 getter（托管侧引用一次，或在 `link.xml` 里保留），
-否则替换会以 `not_found` 被拒绝，而查询与 `invoke` 不受影响。
+`PerformOptions` 控制等待诊断：`diagnostic_after`（默认 10 秒）为从提交开始的等待阈值，`on_wait` 在超过阈值时最多触发一次，运行于协调线程，用于读取 `RuntimeSnapshot`；`diagnostic_after` 为 0 关闭通知，为负在提交期被拒绝。
+
+### 访问作用域
+
+动作在库的协调线程上执行，期间自动处于运行时访问作用域，可直接调用 `Il2Cpp::domain()`。替换回调执行时也会建立同样的作用域，因此回调内可以继续调用 `Il2Cpp::domain()`。作用域建立失败（例如运行时已不可用）时，回调内的作用域降级为空操作，异常不会越过 native 栈。在 `perform` 或替换回调之外调用门面 API 会抛 `BridgeError`（`scope_violation`）。
+
+### 对象链查询
+
+`domain → assembly → image → klass → method` 逐层收窄，类解析限定在选定的 image 内，同名类在不同程序集不会互相污染。已解析的名称可以带出作用域，只有实际读取运行时元数据的操作要求在作用域内。每次操作核对 context 与 generation，旧代际的句柄明确失败（`stale_handle`）而不是返回过期数据。
+
+- `Domain::assembly(name)`：按程序集名选择唯一程序集，容忍一次 `.dll` 后缀；无结果或同名歧义抛错。
+- `Assembly::image()`：取得该程序集对应的真实 image。
+- `Image::klass(full_name)`：只在该 image 内按含命名空间的完整类名查找。
+- `Class::method(name)`、`Class::method(name, managed_parameter_count)`：返回候选选择对象。0 个候选立即抛错；多个候选继续用下面的方法收窄。参数个数是托管参数个数，不计 `this` 与隐藏 `MethodInfo`。
+- `Method::overload(parameter_types)`：按参数类型名继续缩小候选；参数类型名与托管签名逐位相等才匹配。
+
+对于版本分界：Unity 6 把类型分布到多个模块，用底层全 `Runtime::klass("UnityEngine.Time")` 会报多程序集歧义；门面要求显式 `assembly → image → klass`，不受影响。
+
+### 调用
+
+方法解析后可直接调用，也可用 `typed<R, Args...>()` 先得到可复用的绑定：
+
+```cpp
+auto setter = time.method("set_timeScale", 1);
+
+setter.invoke<void, float>(0.5f);                 // 静态方法调用
+float v = getter.invoke<float>();                 // 返回值按值拆箱
+
+auto bound = setter.typed<void, float>();         // 校验一次静态签名的绑定
+bound.invoke(1.0f);
+// 实例方法使用 invoke_on(instance, args...)，实例须与声明类兼容且非静态。
+```
+
+参数是按值还是按指针传递，由绑定的参数类别决定：引用类型传对象指针值，基础类型传值地址。`invoke` 会核对每个非空引用实参的赋值兼容性。C++ 类型到托管类型名的映射见[类型映射](#类型映射)。
+
+`invoke` 与 `typed` 拒绝 byref/ref/out 签名；带类型名映射的指针载体在替换绑定里可按 byref 处理，见下节。
+
+### 托管方法替换
+
+`implementation` 安装托管方法替换，由库强拥有记录，不返回需要保活的句柄。回调形式固定为：
+
+```cpp
+Return on_method(INB::ReplacementCall<Return, Args...>& call, Args... args);
+```
+
+- 回调必须是无捕获的普通函数指针。实例方法的 `this` 不在 `Args` 里，用 `call.self()` 取得（静态方法为 `nullptr`）。
+- `call.original(args...)` 转发原实现，自动补上当前实例与隐藏 `MethodInfo`，可多次显式调用。
+- 回调抛出的异常被隔离在 native 边界：库按节流频率报告诊断，并返回默认值，不自动补调用原实现。
+
+```cpp
+void on_set_time_scale(INB::ReplacementCall<void, float>& call, float value) {
+    if (auto* self = call.self()) { /* 实例方法可用 self */ }
+    call.original(value);
+}
+```
+
+`revert()` 恢复当前 managed target，成功后再调用走原实现；重复恢复成功。`replacement_state()` 返回当前替换状态：`not_installed`、`installing`、`active`、`reverting`、`draining`。恢复发出但仍有调用停留在旧入口时抛 `restore_pending`，可在调用排空后重试。同一地址同时只能有一个所有者：已被底层 Hook 或另一替换占用时报 `owner_conflict`；名额上限为 256，耗尽时报 `resource_exhausted`。
+
+**byref/ref/out 的绑定**：`implementation` 允许用 C++ 指针载体绑定 byref 参数，条件是该指针有托管类型名映射且基础名精确等于去掉 `&` 的托管参数名。例如 `bool*` 映射为 `System.Boolean`，对应托管参数 `System.Boolean&`。native ABI 本就按地址透传，其余不匹配情况在绑定期拒绝。
+
+**部署前提**：首次调用 `implementation` 会读取 `UnityEngine.Application.get_unityVersion` 选择 ABI profile。IL2CPP 只为可达方法生成代码，宿主必须保留该 getter（托管侧引用一次，或在 `link.xml` 中保留），否则替换以 `not_found` 被拒绝；查询与 `invoke` 不受影响。
+
+### 类型映射
+
+`INB::ManagedTypeName<T>` 把 C++ 类型映射到托管类型名，无映射的类型无法参与方法/字段查询，相关模板在编译期拒绝。特化它可扩展新类型，需提供静态成员 `value`：
+
+```cpp
+namespace INB {
+template <> struct ManagedTypeName<MyStruct> {
+    static constexpr std::string_view value = "My.Namespace.MyStruct";
+};
+}
+```
+
+内建映射覆盖 `void`、`bool`、各宽度整型、`float`、`double`、`Il2CppObject*`（`System.Object`）与 `Il2CppString*`（`System.String`）。`managed_type_name<T>` 变量模板免去书写 `ManagedTypeName<remove_cvref_t<T>>::value`。byref 场景还需为指针载体本身提供映射，见上节。
+
+库提供 `INB::UnityVector2`，其内存布局与 `UnityEngine.Vector2` 一致（两个连续 `float`），可直接用于按值传参与返回，并已带好类型名映射。布局带有静态断言，不要改动字段顺序或数量。
+
+### 错误与诊断
+
+门面在第一个失败环节抛 `INB::BridgeError`，动作边界转成 `Result<void>`。`BridgeError::error()` 返回结构化 `Error`：
+
+- `code`：`ErrorCode` 分类，见下文。
+- `stage`：`ErrorStage` 阶段（`submit`/`readiness`/`scope`/`lookup`/`bind`/`invoke`/`replacement`/`restore`/`completion`）。
+- `path`：域/程序集/类/方法的定位路径，不含对象内容或设备信息。
+- `message`：面向诊断的描述，不保证跨版本稳定，不用于逻辑判断。
+
+失败报告格式为 `[il2cpp-native-bridge] stage=… path=… category=… message=…`。Android Debug 构建可开启 `INB_ENABLE_LOGCAT`，在失败的唯一出口以 `INB` 标签写入 logcat。
+
+`ErrorCode` 中与门面相关的分类：`scope_violation`（作用域外执行运行时操作）、`resource_exhausted`（有界资源耗尽）、`restore_pending`（恢复未确认，可稍后重试）、`owner_conflict`（地址由其他所有者管理）。底层共用的分类包括 `runtime_not_ready`、`unsupported_runtime`、`missing_api`、`not_found`、`ambiguous_match`、`type_mismatch`、`invalid_instance`、`invocation_failed`、`managed_exception`、`entry_point_unavailable`、`hook_backend_unavailable`、`hook_install_failed`、`stale_handle`、`invalid_argument`、`internal_error`。调用方按 `code` 决定是等待重试还是改用其他方式。
 
 ### 支持范围
 
-profile 按 family 与版本两级判定：`modern-static`（2018.3 起）与 `legacy-static-slot`（5.3–2018.2）。
-只有列在 `kVerifiedVersions` 中、且通过运行时验收的版本是 `approved`；同 family 的其他版本是 `candidate`
-（可安装但不声称支持）；legacy family 无生成源码证据，保持 `rejected`。
+ABI profile 按 family 与版本两级判定。`modern-static`（2018.3 起且已验证的版本）为 `approved`；同 family 其他版本为 `candidate`（可安装但不声称支持）；`legacy-static-slot`（5.3–2018.2）无生成源码证据，保持 `rejected`。形态相同不等于已在某版本上验过。细节见 [`compatibility.md`](compatibility.md)。
+
+---
+
+## 底层 API
+
+底层接口以 `INB::Result<T>` 返回错误，读取结果前先检查状态。`Result<T>` 用 `has_value()` 或布尔转换判断，成功值用 `value()`/`take_value()`，失败用 `error()`；`Result<void>` 只表示成功或失败。
+
+### 运行时生命周期
+
+```cpp
+#include "il2cpp_native_bridge/bridge.hpp"
+
+using namespace INB;
+
+auto runtime = Runtime::current();
+auto snapshot = runtime.snapshot();     // 就绪状态、能力、缺失导出、last_error
+if (snapshot.state != RuntimeState::ready) { /* 等待或诊断 */ }
+```
+
+- `Runtime::current()` 获取进程内唯一实例，并尝试刷新就绪状态；未就绪时仍返回实例。
+- `Runtime::snapshot()`、`Runtime::refresh()`：查看状态与主动刷新。`RuntimeState` 取 `waiting_for_module`、`initializing`、`ready`、`unsupported`。
+- `Runtime::with_attached_thread(action)`：同步检查运行时就绪，并在回调期间确保当前线程已附加；仅当本次调用完成附加时才在回调结束后分离。它不等待运行时、不切到 Unity 主线程、不安排重试。需要更长的附加生命周期时用 `ThreadAttachment::attach(runtime)`。
+- `Runtime::perform_when_ready(action, completion, options)`：在后台线程轮询模块、`il2cpp_get_corlib` 与程序集状态，就绪后附加线程并只执行一次 action。等待超过 `options.timeout` 时最多调用一次 `options.on_timeout`，然后继续等待。`RuntimeWaitOptions` 控制轮询间隔（默认 100 ms）、超时（默认 10 s）与超时回调。
+- `Runtime::set_symbol_lookup(module, lookup, is_ready)`：注册宿主自定义的导出符号解析器，替代默认模块扫描。只设置解析器、不做等待；必须在任何运行时操作前调用，参数为空或运行时已进入 `ready` 时记录诊断并终止进程。以完全相同的三个参数重复调用无副作用。
+- `Runtime::set_export_override(symbol_name, address)`：为单个导出注册地址覆盖，仅在符号查找失败时使用，且只能在运行时就绪前调用。调用方需确认地址属于兼容的 IL2CPP 实现。
+
+### 类、方法与字段查询
+
+底层以延迟解析的 `ClassQuery` 为核心：构造时不报错，通过 `found()`/`error()` 暴露结果。
+
+```cpp
+auto time = runtime.klass("UnityEngine.Time").in_assembly("UnityEngine.CoreModule");
+if (!time.found()) { /* 读取 time.error() */ }
+
+auto setter = time.method<void, float>("set_timeScale");      // 精确签名
+auto by_arity = time.method<void, float>("set_timeScale", 1); // 按名字与参数个数
+auto field = time.field<int>("someField");
+
+setter.invoke(1.0f);                    // 静态方法
+// setter.invoke_on(instance, 1.0f);    // 实例方法
+```
+
+- `Runtime::klass(name)` 在全域搜索并要求结果唯一；`in_assembly(name)` 缩小范围。`class_by_name` 直接返回原生句柄。
+- `Runtime::klass_of(instance)` 查询对象实际所属的类；`Runtime::generic_class(name, type_arguments, assembly_name)` 构造封闭泛型类，依赖 reflection 相关可选导出，缺失时返回失败结果。
+- `Runtime::classes(filter)` 按完整类名子串枚举已加载的类；空字符串枚举全部。它依赖可选的 `il2cpp_image_get_class_count`/`il2cpp_image_get_class` 导出，缺失时返回 `missing_api`。`ClassQuery::methods()` 返回方法名、返回类型、参数类型与静态标记；`fields()` 返回字段句柄。枚举只在显式调用时执行，不扫描 GC 堆或读取任意对象内容。
+- `ClassQuery::field<T>(name)` 提供类型化读写：`get(instance)`、`set(value, instance)`、`set_boxed(boxed, instance)`。`object_field(name)` 用于不核对类型的引用字段，`boxed_field(name)` 用于以装箱形式写入值类型字段。`new_object()` 按类分配实例。
+- `method<Return, Args...>(name)` 按精确托管签名选择；找不到或不唯一都返回错误，不静默选某个重载。同名同参数数目仍可用 `method(name, count)` 的 arity 形式，歧义时按错误返回。
+- 静态字段传 `instance = nullptr`；实例字段的 `instance` 必须与声明类兼容。
+
+### Hook 与后端
+
+底层 Hook 用 `HookBackend` 抽象原生替换能力，`MethodQuery::hook`/`hook_instance` 安装并返回一个需要保活的 `HookHandle`：
+
+```cpp
+#include <optional>
+#include "il2cpp_native_bridge/frida_gum_hook_backend.hpp"
+
+std::optional<INB::HookHandle<void, float>> handle;
+
+auto result = runtime.with_attached_thread([&]() -> INB::Result<void> {
+    return INB::with_frida_gum_hook_backend([&](const auto& backend) -> INB::Result<void> {
+        auto time = runtime.klass("UnityEngine.Time");
+        auto setter = time.method<void, float>("set_timeScale");
+        auto installed = setter.hook(backend, replacement);
+        if (!installed) return INB::Result<void>::failure(installed.error());
+        handle.emplace(installed.take_value());
+        return INB::Result<void>::success();
+    });
+});
+```
+
+- `handle` 必须在 Hook 存续期间保持有效。`remove()` 可重复调用；句柄析构时也会移除仍生效的 Hook，但析构期无法报告错误，需要处理错误时显式调用 `remove()`。
+- `HookHandle::original()` 返回原函数跳板；Hook 已移除或句柄为空时返回 `nullptr`。替换函数必须自行判空，移除成功后入口也会被清空。
+- `hook_instance` 安装实例方法替换，替换函数首参为 `Il2CppObject* this`。
+- `make_frida_gum_hook_backend()` 初始化已链接的 Frida Gum C 运行时（进程内一次）并返回 backend；`with_frida_gum_hook_backend(action)` 只在 backend 可用时调用 action，否则返回 `hook_backend_unavailable`。`perform_when_ready_with_frida_gum_hook_backend(runtime, action, completion, options)` 把等待运行时、附加线程与创建 backend 组合起来，就绪后 action 至多执行一次。
+- 只做查询、字段访问和调用的消费方可以关闭 Gum 构建目标；安装 Hook 时需要链接 `il2cpp_native_bridge_frida_gum`。
+
+需要长期持有时用 `HookSlot<Return, Args...>`：它串行化安装与移除，在安装返回前发布原函数入口，避免替换函数读到尚未就绪的跳板。`install(installer)` 幂等，`original()` 是一次原子读取，`remove()` 可重复调用。
+
+```cpp
+#include "il2cpp_native_bridge/hook_slot.hpp"
+
+INB::HookSlot<void, float> slot;
+
+void set_time_scale(float value) {
+    if (auto original = slot.original()) original(value);
+}
+
+(void) slot.install([&] { return setter.hook(backend, set_time_scale); });
+```
+
+替换函数仍须自行判空：Gum 可能在 `install()` 返回前就启用替换函数，此时 `original()` 返回 `nullptr`；移除成功后同样清空入口。
+
+完整可编译示例见 [`../examples/standalone`](../examples/standalone)。

@@ -15,6 +15,4 @@ __pycache__/
 .DS_Store
 # Frida Gum devkit 只提交官方压缩包；解压产物由 CMake 生成到构建目录，不入库。
 third_party/frida-gum/17.23.3/android-arm64/frida-gum.h
-# 矩阵执行器输出是生成物，每次重跑都会产生 diff；结论以 compatibility-summary.md 为准。
-tests/results/*.json
 

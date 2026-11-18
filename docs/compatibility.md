@@ -1,77 +1,41 @@
-# 兼容性与验证
+# 兼容性与支持
 
 ## 目标范围
 
-本库目标支持 Unity IL2CPP 5.3.0 至 6000.3.x，调用方无需指定 Unity 版本。产品 ABI 为 Android `arm64-v8a`。实现会在运行时解析 IL2CPP 导出函数，并使用其托管元数据 API 查询类、方法和字段。Frida Gum 的 Android ARM64 静态开发工具包仅用于原生函数 Hook。
+库目标覆盖 Unity IL2CPP 5.3.0 至 6000.3.x，调用方无需指定 Unity 版本。产品 ABI 为 Android `arm64-v8a`；其他 Android ABI 在 CMake 配置阶段报错。实现在运行时解析 IL2CPP 导出函数，用其托管元数据 API 查询类、方法和字段；Frida Gum 的 Android ARM64 静态开发工具包仅用于原生 Hook。
 
-Unity 5.3.0f4 仅作为测试主机上的运行时样例，因为该 Unity 系列不能生成 Android ARM64 玩家版本。Android ARM64 端到端验证从支持 ARM64 的最低版本 Unity 2017.4.16f1 开始。抽样版本矩阵不代表每个补丁版本都已测试。
+## 支持等级
 
-**这一节描述的是目标范围，不是已验证范围。** 两者的差距见下一节。
+ABI profile 按 family 与版本两级判定，等级决定托管方法替换能否安装：
 
-## 已验证范围
-
-**Unity 6000.3.10f1、2021.3.39f1、2022.3.62f2 已完成 Android arm64 运行时验证**（arm64 模拟器，API 29/33）。
-验证内容包括新门面的完整对象链、参数槽、实例槽、托管方法替换与恢复，以及固定 Gum 17.23.3 的释放屏障。
-报告见 [`build/bridge-perform-unity/gate-report.json`](../../../build/bridge-perform-unity/gate-report.json)
-与 [`build/t031-unity/evidence.md`](../../../build/t031-unity/evidence.md)。
-
-2021.3 与 2022.3 是目标应用的实测版本（`com.hypergryph.arknights` = 2021.3.39f1，
-`com.rsg.wdyz` = 2022.3.62f2）。
-
-| 关口 | 结果 | 证据 |
+| 等级 | 范围 | 行为 |
 |---|---|---|
-| G1 参数槽 | 通过 | primitive 按值地址、引用按指针值、null 合法 |
-| G2 原生形态 | 通过 | 同名类按 image 解析；static/instance 替换均生效 |
-| G3 Gum 屏障 | 通过 | 8 项检查全 true，安装窗口 1,740 万次并发调用 0 非法值 |
-| 托管替换链 | 通过 | `implementation → original+40 → revert`，`11 → 51 → 11` |
+| `approved` | 已验证版本：`2021.3`、`2022.3`、`6000.3` | 允许安装替换 |
+| `candidate` | 同 `modern-static` family 的其他版本 | 允许安装替换，但不声称已在该版本验证 |
+| `rejected` | `legacy-static-slot`（5.3–2018.2） | 拒绝安装替换，报 `unsupported_runtime` |
 
-**未验证的版本**：2019–2023 中除 2021.3、2022.3 之外的 modern 版本，以及 5.3–2018.2 的 legacy family。
-前者按 `candidate` 处理（可安装但不声称支持），后者直接 `rejected`。
+family 由版本决定：2018.3 起为 `modern-static`，2018.2 及更早为 `legacy-static-slot`。`approved` 列表在 [`src/hooks/abi_profile.cpp`](../src/hooks/abi_profile.cpp) 的 `kVerifiedVersions` 中维护，按 major.minor 匹配。形态相同不等于已在某版本验证，因此同 family 的其他版本保持 `candidate`；`legacy-static-slot` 缺少可核对的生成源码，保持 `rejected`。
 
-主机端验证：
+查询、字段访问与方法调用不受等级限制，等级只约束替换。判定版本需要读取 `UnityEngine.Application.get_unityVersion`，并需要 `il2cpp_runtime_invoke` 与字符串访问导出；缺失时按对应错误码拒绝，见下文的部署要求。
 
-| 项目 | 证据 |
-|---|---|
-| 主机端单元测试 21 个用例 | 常规 `-Werror`、ASan+UBSan、TSan 三种配置下全部通过 |
-| Android `arm64-v8a` 交叉编译 | 产出 `libil2cpp_native_bridge.a` 与 `libil2cpp_native_bridge_frida_gum.a` |
-| 官方 Gum 静态库校验与解压 | 压缩包与解压后 `libfrida-gum.a` 的 SHA-256 均在配置阶段校验 |
-| GameBox 消费方构建 | `mrfz`、`wdyz` 编译链接通过 |
-| 包化 | `find_package` 在主机与 Android 两端消费成功 |
+## 部署要求
 
-逐版本的矩阵结果与原因分布见 [`tests/results/compatibility-summary.md`](../tests/results/compatibility-summary.md)。
+- **保留版本 getter**：替换安装会读取 `UnityEngine.Application.get_unityVersion` 选择 ABI profile。IL2CPP 只为**可达**方法生成代码；宿主若裁掉该 getter，替换会以 `not_found` 被拒绝，查询与 `invoke` 不受影响。保留方式是在托管侧引用一次该属性，或在 `link.xml` 中保留。
+- **入口必须可执行**：地址校验采用 fail-closed，`methodPointer` 必须落在可执行映射内，否则以 `entry_point_unavailable` 拒绝安装。在只有 ARM 翻译层、代码映射缺少执行权限的环境里替换会被明确拒绝，不会放宽校验后交给 Gum 去 patch 未标记为可执行的代码。
+- **Gum 后端**：`implementation` 依赖 Frida Gum 后端。仅使用查询与调用的宿主可以关闭 Gum 构建目标；安装替换时需链接 `il2cpp_native_bridge_frida_gum`。
 
 ## 构建
 
-Android 平台的 CMake 构建默认将 `IL2CPP_NATIVE_BRIDGE_BUILD_FRIDA_GUM_BACKEND` 设为 `ON`，并链接固定版本的 Frida Gum 17.23.3 Android ARM64 开发工具包。仓库只提交官方压缩包 `third_party/frida-gum/17.23.3/android-arm64/frida-gum-devkit-17.23.3-android-arm64.tar.xz`，配置阶段解压到构建目录后再链接；配置和构建都不联网，也不会从源码构建 Gum。只有在明确提供其他已解压的开发工具包时，才使用可选配置 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT`。主机端单元测试使用 API 替身，不链接 Android 静态库。
+Android 平台的 CMake 构建默认把 `IL2CPP_NATIVE_BRIDGE_BUILD_FRIDA_GUM_BACKEND` 设为 `ON`，并链接固定版本的 Frida Gum 17.23.3 Android ARM64 开发工具包。仓库只提交官方压缩包 `third_party/frida-gum/17.23.3/android-arm64/frida-gum-devkit-17.23.3-android-arm64.tar.xz`，配置阶段校验其 SHA-256、解压到构建目录，再校验解压后 `libfrida-gum.a` 的 SHA-256，然后链接；配置与构建都不联网，也不从源码构建 Gum。提供自备的已解压 devkit 时使用 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ROOT`，此时跳过摘要校验。
 
-CMake 会校验压缩包的 SHA-256（默认固定为 17.23.3 的摘要，`IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ARCHIVE_SHA256`）和解压后 `libfrida-gum.a` 的 SHA-256（`IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_LIBRARY_SHA256`），任一不符时在配置阶段终止。
+两个摘要的默认值分别为 `81b0566ef5b352f1c435b0212d4841b93cc490a6d6fbd6d9b8295e09213e8b85`（压缩包）和 `1a9d92abe132cee87686df3e95b57d7610d8239b29cd3e5710108fe832727852`（`libfrida-gum.a`），可通过 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_ARCHIVE_SHA256` 与 `IL2CPP_NATIVE_BRIDGE_FRIDA_GUM_LIBRARY_SHA256` 覆盖；任一不符即在配置阶段终止。非 Android 构建默认关闭 Gum 后端，不链接 Android 静态库。
 
 ```sh
 cmake -S . -B build/android-arm64 \
   -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
   -DANDROID_ABI=arm64-v8a \
-  -DANDROID_PLATFORM=android-28 \
-  -DIL2CPP_NATIVE_BRIDGE_BUILD_TESTS=OFF
+  -DANDROID_PLATFORM=android-28
 cmake --build build/android-arm64 --target il2cpp_native_bridge il2cpp_native_bridge_frida_gum
 ```
 
-作为子目录被消费时，`IL2CPP_NATIVE_BRIDGE_BUILD_TESTS` 与 `IL2CPP_NATIVE_BRIDGE_INSTALL` 都默认关闭，不会向宿主注册测试或安装规则。需要包化能力时用 `cmake --install` 生成可 `find_package` 的安装树；交叉编译的消费方还需传 `-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH`，否则 Android 工具链会把 `CMAKE_PREFIX_PATH` 排除在外。
-
-## 运行时验收要求
-
-每个 Unity 样例都应记录精确的 Editor 版本、玩家目标和 ABI、代码裁剪设置，以及运行时发现、类/方法/字段查询、方法调用和 Hook 生命周期的独立结果。Android ARM64 样例还需验证 `UnityEngine.Time.set_timeScale(float)` 的查找、调用、Gum Hook、原函数跳板、Hook 移除和数值恢复流程。仅主机端的样例必须与 Android 验证结果分开标记。
-
-矩阵执行器 `tests/runtime/run_matrix.py` 会根据 [`tests/runtime/matrix.json`](../tests/runtime/matrix.json) 选择样例、构建原生 acceptance 插件和 Unity 玩家，并输出每项检查的 JSON 状态。Unity Editor、Android NDK、Android ARM64 设备或指定 Editor 版本缺失时，执行器将相应样例标记为 `blocked`，不会把它算作通过。每个 Editor 版本都必须与矩阵条目精确匹配；单版本执行可传该 Editor 的可执行文件，多版本执行需使用带 `{version}` 的路径模板。
-
-```sh
-python3 tests/runtime/run_matrix.py --unity-version 5.3.0f4 --target linux-x64 --host-only \
-  --unity-editor "$UNITY_EDITOR" --output tests/results/host-matrix.json
-python3 tests/runtime/run_matrix.py --unity-version 2021.3.39f1 --target android-arm64-v8a \
-  --device "$ANDROID_SERIAL" --unity-editor "$UNITY_EDITOR" --output tests/results/android-arm64-matrix.json
-```
-
-`tests/results/*.json` 是执行器输出，不入库；结论以 `compatibility-summary.md` 为准，其中数字可用 `summarize_matrix.py` 从 JSON 复算或校验。
-
-`blocked` 记录必须带 `reason` 字段，取值限于 `no_editor`、`no_device`、`no_ndk`、`toolchain_missing`、`host_platform_mismatch`。每类的解除条件见汇总文档。
-
-主机端 fixture 没有 UnityEngine 运行时，因此 `set_timeScale` Hook 项会报告为 `not_applicable`；主机端只验证通用 IL2CPP 元数据、字段和调用路径。`UnityEngine.Time.set_timeScale` 的真实查找与 Frida Gum Hook 验收只在 Android ARM64 玩家中执行。记录实际运行结果前，不得将矩阵条目标记为已测试。
+作为子目录被消费时，`IL2CPP_NATIVE_BRIDGE_INSTALL` 默认关闭，不会向宿主注册安装规则。需要包化时用 `cmake --install` 生成可 `find_package` 的安装树；交叉编译的消费方还需传 `-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH`，否则 Android 工具链会把 `CMAKE_PREFIX_PATH` 排除在外。
