@@ -58,7 +58,10 @@ struct Api {
     Il2CppObject* (*type_get_object)(const Il2CppType*){};
     Il2CppArray* (*array_new)(Il2CppClass*, std::size_t){};
     Il2CppClass* (*class_from_system_type)(Il2CppObject*){};
+    Il2CppClass* (*class_get_parent)(Il2CppClass*){};
     const Il2CppImage* (*get_corlib)(){};
+    std::size_t (*array_length)(Il2CppArray*){};
+    Il2CppString* (*string_new_utf16)(const std::uint16_t*, std::uint32_t){};
     void (*free_memory)(void*){};
 
     /// 按需类型识别、赋值兼容与字符串读取；缺失只影响依赖它的操作，不阻断就绪判断。
@@ -84,6 +87,7 @@ inline constexpr const char* kAllocation = "allocation";
 inline constexpr const char* kType = "type";
 inline constexpr const char* kInstance = "instance";
 inline constexpr const char* kString = "string";
+inline constexpr const char* kArray = "array";
 } /// namespace capability_group
 
 /// 导出表清单：字段、符号名，以及可选导出的能力分组。绑定、诊断与测试桩共用这一份定义。
@@ -122,7 +126,10 @@ inline constexpr const char* kString = "string";
     X_OPTIONAL(type_get_object, "il2cpp_type_get_object", capability_group::kAllocation)        \
     X_OPTIONAL(array_new, "il2cpp_array_new", capability_group::kAllocation)                    \
     X_OPTIONAL(class_from_system_type, "il2cpp_class_from_system_type", capability_group::kAllocation) \
+    X_OPTIONAL(class_get_parent, "il2cpp_class_get_parent", capability_group::kType)                  \
     X_OPTIONAL(get_corlib, "il2cpp_get_corlib", capability_group::kReadiness)                   \
+    X_OPTIONAL(array_length, "il2cpp_array_length", capability_group::kArray)                   \
+    X_OPTIONAL(string_new_utf16, "il2cpp_string_new_utf16", capability_group::kString)          \
     X_OPTIONAL(image_get_class_count, "il2cpp_image_get_class_count", capability_group::kEnumeration) \
     X_OPTIONAL(image_get_class, "il2cpp_image_get_class", capability_group::kEnumeration)       \
     X_OPTIONAL(type_get_type, "il2cpp_type_get_type", capability_group::kType)                  \

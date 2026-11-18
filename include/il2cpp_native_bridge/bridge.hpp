@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+struct Il2CppArray;
 struct Il2CppClass;
 struct Il2CppDomain;
 struct Il2CppFieldInfo;
@@ -266,6 +267,15 @@ public:
      */
     ClassQuery klass_of(Il2CppObject* instance) const;
     /**
+     * 返回给定类查询的直接基类查询。
+     *
+     * IL2CPP 的元数据枚举不包含继承成员；需要沿继承链查找方法时可用本接口逐级上溯。
+     *
+     * @param query 已解析的类查询；未命中时原样返回错误。
+     * @return 基类查询；无基类、缺少导出或解析失败时返回未命中查询。
+     */
+    ClassQuery base_class(const ClassQuery& query) const;
+    /**
      * 按泛型类型定义名与实参构造封闭泛型类。
      *
      * 依赖反射相关可选导出；缺失时返回失败的类查询对象。
@@ -286,6 +296,50 @@ public:
      */
     Result<ClassHandle> class_by_name(std::string_view fully_qualified_name,
                                       std::optional<std::string> assembly_name = std::nullopt) const;
+
+    /**
+     * 读取托管数组的元素个数。
+     *
+     * 优先使用 `il2cpp_array_length`；导出缺失时回退到 `System.Array.get_Length` 反射调用。
+     *
+     * @param array 托管数组对象，不能为空。
+     * @return 元素个数；对象为空、运行时未就绪或导出/反射均不可用时返回错误。
+     */
+    Result<std::size_t> array_length(Il2CppObject* array) const;
+    /**
+     * 取得装箱值类型的数据指针，供按字节读取。
+     *
+     * 返回的指针借用自托管对象，不在本接口内保活；调用期间保持 boxed 有效即可。
+     *
+     * @param boxed 装箱后的托管值，不能为空。
+     * @return 指向值数据的指针；对象为空或导出不可用时返回错误。
+     */
+    Result<void*> unbox(Il2CppObject* boxed) const;
+
+    /**
+     * 把托管字符串读取为 UTF-8。
+     * @param value 托管字符串，不能为空。
+     * @return UTF-8 文本；缺少字符串读取导出或读取失败时返回错误。
+     */
+    Result<std::string> string_to_utf8(Il2CppString* value) const;
+    /**
+     * 把托管字符串读取为 UTF-16。
+     * @param value 托管字符串，不能为空。
+     * @return UTF-16 文本；缺少字符串读取导出或读取失败时返回错误。
+     */
+    Result<std::u16string> string_to_utf16(Il2CppString* value) const;
+    /**
+     * 从 UTF-8 文本分配托管字符串。
+     * @param value UTF-8 文本；按完整内容转换，不因内嵌空字符截断。
+     * @return 新字符串；缺少 `il2cpp_string_new_utf16` 导出或分配失败时返回错误。
+     */
+    Result<Il2CppString*> string_from_utf8(std::string_view value) const;
+    /**
+     * 从 UTF-16 文本分配托管字符串。
+     * @param value UTF-16 文本。
+     * @return 新字符串；缺少 `il2cpp_string_new_utf16` 导出或分配失败时返回错误。
+     */
+    Result<Il2CppString*> string_from_utf16(std::u16string_view value) const;
 
 private:
     explicit Runtime(std::shared_ptr<detail::RuntimeContext> context) : context_(std::move(context)) {}

@@ -181,6 +181,30 @@ ClassQuery Runtime::klass_of(Il2CppObject* instance) const {
     return ClassQuery(*this, detail::resolve_object_class(context_, instance));
 }
 
+ClassQuery Runtime::base_class(const ClassQuery& query) const {
+    if (!query.result_) return ClassQuery(*this, query.result_);
+    const auto api = detail::api_for(context_);
+    if (api.class_get_parent == nullptr || api.class_get_name == nullptr || api.class_get_namespace == nullptr) {
+        return ClassQuery(*this, Result<ClassHandle>::failure(make_error(ErrorCode::missing_api,
+            "IL2CPP class parent APIs are unavailable")));
+    }
+    Il2CppClass* parent = api.class_get_parent(query.result_.value().native);
+    if (parent == nullptr) {
+        return ClassQuery(*this, Result<ClassHandle>::failure(make_error(ErrorCode::not_found,
+            "managed class has no parent: " + query.result_.value().full_name)));
+    }
+    const char* name = api.class_get_name(parent);
+    const char* name_space = api.class_get_namespace(parent);
+    if (name == nullptr || *name == '\0') {
+        return ClassQuery(*this, Result<ClassHandle>::failure(make_error(ErrorCode::not_found,
+            "parent class has no name")));
+    }
+    std::string full_name = (name_space != nullptr && *name_space != '\0')
+                                    ? std::string(name_space) + "." + name
+                                    : std::string(name);
+    return ClassQuery(*this, full_name, query.result_.value().assembly_name);
+}
+
 ClassQuery Runtime::generic_class(std::string_view generic_type_name,
                                   std::span<const std::string_view> type_arguments,
                                   std::optional<std::string_view> assembly_name) const {

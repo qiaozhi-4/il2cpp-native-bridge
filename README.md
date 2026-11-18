@@ -64,6 +64,8 @@ int main() {
 
 两层共享同一个运行时 context，宿主通过 `Runtime::set_symbol_lookup` 配置一次的符号解析器对两者同时生效。C++ 命名空间统一为 `INB`，而头文件目录、CMake 目标名与包名保持 `il2cpp_native_bridge` 不变。
 
+`collections.hpp` 提供字符串转换与托管数组、`List<T>`、字典的底层视图；`managed_types.hpp` 在其上提供 `ManagedString`/`ManagedList`/`ManagedDictionary` 便捷包装。它们不引入第三层运行时，与两层 API 共用同一个 context。
+
 ## 平台与依赖
 
 - 产品目标为 Android `arm64-v8a`；其他 Android ABI 会在配置阶段报错。主机端构建用于集成示例与开发调试。
@@ -94,6 +96,7 @@ cmake --build build/android-arm64 --target il2cpp_native_bridge il2cpp_native_br
 ## 文档
 
 - [C++ 接入 API](docs/api.md)：两层 API 的契约、类型映射、Hook、错误模型与部署要求。
+- [集合与字符串工具](docs/collections.md)：`collections.hpp` 与 `managed_types.hpp` 的 API、示例和不可变字符串说明。
 - [兼容性与验证](docs/compatibility.md)：支持范围、部署前提与构建选项。
 - [独立示例](examples/standalone)：最小消费者，含源码树与 `find_package` 两种消费方式。
 - [第三方许可证说明](LICENSES/README.md)。

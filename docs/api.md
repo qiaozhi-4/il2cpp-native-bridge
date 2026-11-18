@@ -182,11 +182,22 @@ setter.invoke(1.0f);                    // 静态方法
 ```
 
 - `Runtime::klass(name)` 在全域搜索并要求结果唯一；`in_assembly(name)` 缩小范围。`class_by_name` 直接返回原生句柄。
-- `Runtime::klass_of(instance)` 查询对象实际所属的类；`Runtime::generic_class(name, type_arguments, assembly_name)` 构造封闭泛型类，依赖 reflection 相关可选导出，缺失时返回失败结果。
+- `Runtime::klass_of(instance)` 查询对象实际所属的类；`Runtime::base_class(query)` 返回直接基类查询，用于沿继承链查找 IL2CPP 不列出的继承方法；`Runtime::generic_class(name, type_arguments, assembly_name)` 构造封闭泛型类，依赖 reflection 相关可选导出，缺失时返回失败结果。
 - `Runtime::classes(filter)` 按完整类名子串枚举已加载的类；空字符串枚举全部。它依赖可选的 `il2cpp_image_get_class_count`/`il2cpp_image_get_class` 导出，缺失时返回 `missing_api`。`ClassQuery::methods()` 返回方法名、返回类型、参数类型与静态标记；`fields()` 返回字段句柄。枚举只在显式调用时执行，不扫描 GC 堆或读取任意对象内容。
 - `ClassQuery::field<T>(name)` 提供类型化读写：`get(instance)`、`set(value, instance)`、`set_boxed(boxed, instance)`。`object_field(name)` 用于不核对类型的引用字段，`boxed_field(name)` 用于以装箱形式写入值类型字段。`new_object()` 按类分配实例。
 - `method<Return, Args...>(name)` 按精确托管签名选择；找不到或不唯一都返回错误，不静默选某个重载。同名同参数数目仍可用 `method(name, count)` 的 arity 形式，歧义时按错误返回。
 - 静态字段传 `instance = nullptr`；实例字段的 `instance` 必须与声明类兼容。
+
+### 数组、字典与字符串
+
+字符串转换、数组遍历、`List<T>` 遍历与字典遍历的完整 API、成员表和示例见独立的 [集合与字符串工具](collections.md)。底层增加的能力包括：
+
+- `Runtime::array_length(array)`：优先用 `il2cpp_array_length`，导出缺失时回退 `System.Array.get_Length`。
+- `Runtime::unbox(boxed)`：返回装箱值的数据指针，供按字节读取。
+- `Runtime::base_class(query)`：返回直接基类查询，用于沿继承链查找 IL2CPP 不列出的继承方法，依赖 `il2cpp_class_get_parent`。
+- `Runtime::string_to_utf8/string_to_utf16` 与 `string_from_utf8/string_from_utf16`：托管字符串与 C++ 文本的双向转换。
+
+`collections.hpp` 提供 `ArrayView<T>`、`ListView<T>`、`DictionaryView<K,V>` 三组只读视图，以及上述字符串方法；`managed_types.hpp` 在其上提供抛 `BridgeError` 的 `ManagedString`、`ManagedList<T>`、`ManagedDictionary<K,V>` 便捷包装。它们共用同一个 `Runtime` context，可在 `Il2Cpp::perform` 作用域内或低层 `Runtime::current()` 代码里使用。
 
 ### Hook 与后端
 

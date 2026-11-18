@@ -61,6 +61,8 @@ add_library(il2cpp_native_bridge STATIC
         src/metadata/class_query.cpp
         src/metadata/method_query.cpp
         src/metadata/field_access.cpp
+        src/metadata/array_access.cpp
+        src/metadata/string_access.cpp
         src/invoke/method_invoke.cpp
         src/hooks/entry_point_resolver.cpp
         src/hooks/abi_profile.cpp
