@@ -1,5 +1,7 @@
 #include "metadata_internal.hpp"
 
+#include "logging/internal_log.hpp"
+
 namespace INB::detail {
 
 Result<FieldHandle> resolve_field(const ClassHandle& klass,
@@ -47,16 +49,28 @@ Result<FieldHandle> resolve_field(const ClassHandle& klass,
     }
 
     if (exact_matches == 0) {
+        if (mark_lookup_logged(klass.context, cache_key)) {
+            INB_LOGD("field %s::%.*s: %s", klass.full_name.c_str(), static_cast<int>(name.size()), name.data(),
+                     named_matches == 0 ? "not found" : "type mismatch");
+        }
         const auto code = named_matches == 0 ? ErrorCode::not_found : ErrorCode::type_mismatch;
         return Result<FieldHandle>::failure(make_error(code,
             named_matches == 0 ? "managed field was not found: " + std::string(name)
                                : "managed field type did not match: " + std::string(name)));
     }
     if (exact_matches > 1) {
+        if (mark_lookup_logged(klass.context, cache_key)) {
+            INB_LOGD("field %s::%.*s: ambiguous, %zu matching fields", klass.full_name.c_str(),
+                     static_cast<int>(name.size()), name.data(), exact_matches);
+        }
         return Result<FieldHandle>::failure(make_error(ErrorCode::ambiguous_match,
             "managed field name and type matched multiple fields: " + std::string(name)));
     }
 
+    if (mark_lookup_logged(klass.context, cache_key)) {
+        INB_LOGD("field %s::%.*s -> %p (%s)", klass.full_name.c_str(), static_cast<int>(name.size()), name.data(),
+                 static_cast<const void*>(match), matched_type.c_str());
+    }
     FieldHandle result;
     result.declaring_class = klass;
     result.native = match;

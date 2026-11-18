@@ -3,6 +3,8 @@
 #include "facade/facade_internal.hpp"
 #include "metadata/metadata_internal.hpp"
 
+#include "logging/internal_log.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -113,6 +115,11 @@ Class Image::klass(std::string_view full_name) const {
         detail::fail(ErrorCode::not_found, ErrorStage::lookup, path,
              "the selected image does not contain the requested class");
     }
+    if constexpr (INB_LOG_ENABLED) {
+        if (detail::mark_lookup_logged(context_, path)) {
+            INB_LOGD("class %s -> %p", path.c_str(), static_cast<void*>(klass));
+        }
+    }
     return Class(context_, generation_, klass, std::string(full_name), name_, assembly_name_);
 }
 
@@ -173,6 +180,14 @@ Method Class::select(std::string_view name, const std::optional<std::size_t>& pa
     if (candidates.empty()) {
         detail::fail(ErrorCode::not_found, ErrorStage::lookup, path,
              "no method matches the requested name and parameter count");
+    }
+    if constexpr (INB_LOG_ENABLED) {
+        std::string key = path;
+        key += '#';
+        key += parameter_count.has_value() ? std::to_string(*parameter_count) : std::string("any");
+        if (detail::mark_lookup_logged(context_, key)) {
+            INB_LOGD("method %s -> %zu candidate(s)", path.c_str(), candidates.size());
+        }
     }
     return Method(context_, generation_, native_, full_name_, std::string(name), std::move(candidates));
 }

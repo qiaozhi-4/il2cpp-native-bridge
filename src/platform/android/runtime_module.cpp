@@ -1,5 +1,7 @@
 #include "runtime/runtime_internal.hpp"
 
+#include "logging/internal_log.hpp"
+
 #include <dlfcn.h>
 
 #if defined(__ANDROID__) || (defined(__linux__) && !defined(__ANDROID__))
@@ -66,12 +68,19 @@ void* find_loaded_runtime_module() {
     dl_iterate_phdr(find_runtime_module, &search);
     for (const auto& candidate : modules) {
         if (void* module = dlopen(candidate.path.c_str(), RTLD_NOW | RTLD_NOLOAD); module != nullptr) {
-            if (handle_matches_loaded_runtime(module, modules)) return module;
+            if (handle_matches_loaded_runtime(module, modules)) {
+                INB_LOGI("IL2CPP module: %s (base %p)", candidate.path.c_str(),
+                         reinterpret_cast<void*>(candidate.load_address));
+                return module;
+            }
             dlclose(module);
         }
     }
     if (void* module = dlopen("libil2cpp.so", RTLD_NOW | RTLD_NOLOAD); module != nullptr) {
-        if (handle_matches_loaded_runtime(module, modules)) return module;
+        if (handle_matches_loaded_runtime(module, modules)) {
+            INB_LOGI("IL2CPP module: libil2cpp.so (handle %p)", module);
+            return module;
+        }
         dlclose(module);
     }
     return nullptr;
@@ -85,7 +94,11 @@ void* find_loaded_runtime_module() {
 #if defined(RTLD_NOLOAD)
     for (const auto& candidate : modules) {
         if (void* module = dlopen(candidate.path.c_str(), RTLD_NOW | RTLD_NOLOAD); module != nullptr) {
-            if (handle_matches_loaded_runtime(module, modules)) return module;
+            if (handle_matches_loaded_runtime(module, modules)) {
+                INB_LOGI("runtime module: %s (base %p)", candidate.path.c_str(),
+                         reinterpret_cast<void*>(candidate.load_address));
+                return module;
+            }
             dlclose(module);
         }
     }

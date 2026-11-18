@@ -4,6 +4,8 @@
 #include "hooks/abi_profile.hpp"
 #include "hooks/hook_internal.hpp"
 
+#include "logging/internal_log.hpp"
+
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -83,6 +85,8 @@ void perform_revert(ManagedRecord* record) {
              "the replacement is still draining; retry revert after in-flight calls return");
     }
 
+    /// 记录在此之后就被释放，日志必须先取到它自有的 path。
+    INB_LOGD("replacement reverted: %s", record->path.c_str());
     {
         auto& managed = registry();
         std::lock_guard lock(managed.mutex);
@@ -204,6 +208,7 @@ void install_replacement(const ReplacementRequest& request) {
     }
 
     stored->state.store(static_cast<int>(ReplacementState::active));
+    INB_LOGI("replacement installed: %s -> %p", signature.path.c_str(), target);
 }
 
 void revert_replacement(const std::shared_ptr<RuntimeContext>& context,

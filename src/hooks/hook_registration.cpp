@@ -2,6 +2,8 @@
 #include "hooks/managed_provider_internal.hpp"
 #include "metadata/metadata_internal.hpp"
 
+#include "logging/internal_log.hpp"
+
 #include <unordered_map>
 
 namespace INB::detail {
@@ -85,6 +87,8 @@ Result<std::shared_ptr<HookState>> install_hook(const MethodHandle& method,
     state->target = entry.value();
     state->original.store(installed.value(), std::memory_order_release);
     hooks.active[state->target] = state;
+    INB_LOGI("hook installed: %s::%s -> %p", method.declaring_class.full_name.c_str(), method.name.c_str(),
+             state->target);
     return Result<std::shared_ptr<HookState>>::success(std::move(state));
 }
 
@@ -100,6 +104,7 @@ Result<void> remove_hook(const std::shared_ptr<HookState>& state) {
     /// 先置空跳板再标记已移除，保证读到 removed 时 original 必为 nullptr。
     state->original.store(nullptr, std::memory_order_release);
     state->removed.store(true, std::memory_order_release);
+    INB_LOGD("hook removed: %p", state->target);
     {
         auto& hooks = registry();
         std::lock_guard registry_lock(hooks.mutex);

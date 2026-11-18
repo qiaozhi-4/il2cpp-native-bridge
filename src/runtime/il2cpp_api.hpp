@@ -171,10 +171,13 @@ using SymbolLookupReady = bool (*)(void* module);
  * @param module 要解析的模块句柄。
  * @param lookup 符号查找函数，不能为空。
  * @param missing_symbol_overrides 缺失符号的地址覆盖表。
+ * @param log_resolution 为真时按符号逐条打印解析结果；调用方负责保证每次运行只传一次真，
+ *                       否则轮询重试会把同一批导出刷进 logcat。
  * @return 解析结果；lookup 为空时所有必需导出记为缺失。
  */
 ResolvedExports resolve_exports(void* module,
                                 SymbolLookup lookup,
-                                const std::unordered_map<std::string, void*>& missing_symbol_overrides = {});
+                                const std::unordered_map<std::string, void*>& missing_symbol_overrides = {},
+                                bool log_resolution = false);
 
 } /// namespace INB::detail

@@ -134,6 +134,16 @@ template <> struct ManagedTypeName<MyStruct> {
 
 失败报告格式为 `[il2cpp-native-bridge] stage=… path=… category=… message=…`。Android Debug 构建可开启 `INB_ENABLE_LOGCAT`，在失败的唯一出口以 `INB` 标签写入 logcat。
 
+同一开关还会输出 Debug 轨迹，标签同为 `INB`（`logcat -s INB`）：
+
+- 模块与导出：`IL2CPP module: …` 与逐符号的 `export il2cpp_class_from_name: 0x… (+0x…)`；只在首次解析导出表时打印，缺失的必需导出记 Error、可选导出记 Debug，末尾附 `exports resolved: …` 汇总。
+- 就绪迁移：`runtime waiting_for_module / initializing / ready / unsupported`，每个阶段只打印一次，`ready` 附带代际与已加载程序集数量。
+- 首次解析：`class …`、`method …::…`、`field …::…` 与门面的 `bind …`。同一查询在进程内只打印一次，成功与失败都只记一次，因此逐帧查询不会刷屏。
+- Hook：`hook installed`、`replacement installed`、`hook removed`、`replacement reverted`。
+- 门面生命周期：`perform#N queued`、`perform#N start after N ms`、`perform#N done after N ms`，用于区分「卡在等待就绪」与「动作本身耗时」。
+
+日志在编译期关闭时展开为空操作：既不生成格式串，也不做计时或去重查表，Release 构建没有残留开销。
+
 `ErrorCode` 中与门面相关的分类：`scope_violation`（作用域外执行运行时操作）、`resource_exhausted`（有界资源耗尽）、`restore_pending`（恢复未确认，可稍后重试）、`owner_conflict`（地址由其他所有者管理）。底层共用的分类包括 `runtime_not_ready`、`unsupported_runtime`、`missing_api`、`not_found`、`ambiguous_match`、`type_mismatch`、`invalid_instance`、`invocation_failed`、`managed_exception`、`entry_point_unavailable`、`hook_backend_unavailable`、`hook_install_failed`、`stale_handle`、`invalid_argument`、`internal_error`。调用方按 `code` 决定是等待重试还是改用其他方式。
 
 ### 支持范围

@@ -1,5 +1,6 @@
 #include "runtime_internal.hpp"
 #include "facade/facade_internal.hpp"
+#include "logging/internal_log.hpp"
 
 #include <algorithm>
 #include <set>
@@ -15,6 +16,56 @@ enum class Discovery {
     resolver_not_ready,
 };
 
+/// 状态迁移日志点。每个点在一次运行里只打印一次，轮询重试不会把同一行刷满 logcat。
+enum class LogPoint : unsigned {
+    waiting_for_module = 1u << 0,
+    resolver_not_ready = 1u << 1,
+    unsupported = 1u << 2,
+    initializing = 1u << 3,
+    ready = 1u << 4,
+};
+
+[[maybe_unused]] const char* state_name(RuntimeState state) {
+    switch (state) {
+        case RuntimeState::waiting_for_module: return "waiting_for_module";
+        case RuntimeState::initializing: return "initializing";
+        case RuntimeState::ready: return "ready";
+        case RuntimeState::unsupported: return "unsupported";
+    }
+    return "unknown";
+}
+
+/**
+ * 首次到达某个日志点时打印状态；detail 以回调延迟构造，日志编译关闭时连字符串都不会生成。
+ *
+ * @param context 当前运行时 context。
+ * @param point 迁移日志点。
+ * @param state 该日志点对应的状态，决定日志级别。
+ * @param detail 描述该次迁移的文本构造器。
+ */
+template <typename Detail>
+void log_state_once(RuntimeContext& context, LogPoint point, RuntimeState state, Detail detail) {
+    if constexpr (INB_LOG_ENABLED) {
+        const auto bit = static_cast<unsigned>(point);
+        if ((context.logged_points & bit) != 0) return;
+        context.logged_points |= bit;
+
+        const std::string message = detail();
+        if (state == RuntimeState::ready) {
+            INB_LOGI("runtime ready: %s", message.c_str());
+        } else if (state == RuntimeState::unsupported) {
+            INB_LOGE("runtime unsupported: %s", message.c_str());
+        } else {
+            INB_LOGD("runtime %s: %s", state_name(state), message.c_str());
+        }
+    } else {
+        (void) context;
+        (void) point;
+        (void) state;
+        (void) detail;
+    }
+}
+
 /// 解析模块与导出表；调用方持有 context.mutex。两个就绪投影共用这一次解析。
 Discovery discover_exports(RuntimeContext& context) {
     if (context.module == nullptr && !context.injected_api) {
@@ -28,7 +79,9 @@ Discovery discover_exports(RuntimeContext& context) {
             return Discovery::resolver_not_ready;
         }
         const auto lookup = context.symbol_lookup == nullptr ? lookup_runtime_symbol : context.symbol_lookup;
-        auto exports = resolve_exports(context.module, lookup, context.export_overrides);
+        /// 逐符号日志只在第一次解析时打印：未就绪前的轮询会反复走到这里。
+        auto exports = resolve_exports(context.module, lookup, context.export_overrides, !context.exports_logged);
+        context.exports_logged = true;
         context.api = exports.api;
         context.snapshot.missing_apis = exports.missing_required;
         context.snapshot.missing_optional_apis = exports.missing_optional;
@@ -92,11 +145,15 @@ Result<void> refresh_context(const std::shared_ptr<RuntimeContext>& context) {
         case Discovery::waiting_for_module:
             context->snapshot.state = RuntimeState::waiting_for_module;
             context->snapshot.last_error = "could not obtain a handle to loaded libil2cpp.so";
+            log_state_once(*context, LogPoint::waiting_for_module, RuntimeState::waiting_for_module,
+                           [] { return std::string("libil2cpp.so is not loaded yet"); });
             return Result<void>::failure(make_error(ErrorCode::runtime_not_ready, context->snapshot.last_error));
         case Discovery::resolver_not_ready:
             context->snapshot.state = RuntimeState::waiting_for_module;
             context->snapshot.last_error = "configured IL2CPP symbol resolver is not ready";
             context->snapshot.missing_apis.clear();
+            log_state_once(*context, LogPoint::resolver_not_ready, RuntimeState::waiting_for_module,
+                           [] { return std::string("the configured symbol resolver is not ready"); });
             return Result<void>::failure(make_error(ErrorCode::runtime_not_ready, context->snapshot.last_error));
         case Discovery::ready:
             break;
@@ -106,16 +163,22 @@ Result<void> refresh_context(const std::shared_ptr<RuntimeContext>& context) {
         context->snapshot.state = RuntimeState::unsupported;
         context->snapshot.last_error = describe_missing("missing required IL2CPP exports:",
                                                         context->snapshot.missing_apis);
+        log_state_once(*context, LogPoint::unsupported, RuntimeState::unsupported,
+                       [&context] { return context->snapshot.last_error; });
         return Result<void>::failure(make_error(ErrorCode::unsupported_runtime, context->snapshot.last_error));
     }
 
     if (context->api.domain_get == nullptr || context->api.domain_get_assemblies == nullptr) {
         context->snapshot.state = RuntimeState::unsupported;
         context->snapshot.last_error = "runtime API table is incomplete";
+        log_state_once(*context, LogPoint::unsupported, RuntimeState::unsupported,
+                       [&context] { return context->snapshot.last_error; });
         return Result<void>::failure(make_error(ErrorCode::unsupported_runtime, context->snapshot.last_error));
     }
 
     context->snapshot.state = RuntimeState::initializing;
+    log_state_once(*context, LogPoint::initializing, RuntimeState::initializing,
+                   [] { return std::string("exports are complete, resolving the IL2CPP domain"); });
     if (context->domain == nullptr) {
         if (context->api.get_corlib != nullptr && context->api.get_corlib() == nullptr) {
             context->snapshot.last_error = "il2cpp_get_corlib returned null; IL2CPP runtime is not ready";
@@ -163,6 +226,10 @@ Result<void> refresh_context(const std::shared_ptr<RuntimeContext>& context) {
     if (context->api.image_get_class_count != nullptr && context->api.image_get_class != nullptr) {
         context->snapshot.capabilities.emplace_back("class_enumeration");
     }
+    log_state_once(*context, LogPoint::ready, RuntimeState::ready, [&context, assembly_count] {
+        return "generation=" + std::to_string(context->snapshot.generation) +
+               " assemblies=" + std::to_string(assembly_count);
+    });
     return Result<void>::success();
 }
 
@@ -180,10 +247,14 @@ Result<void> refresh_core(const std::shared_ptr<RuntimeContext>& context) {
         case Discovery::waiting_for_module:
             context->core.state = RuntimeState::waiting_for_module;
             context->core.last_error = "could not obtain a handle to loaded libil2cpp.so";
+            log_state_once(*context, LogPoint::waiting_for_module, RuntimeState::waiting_for_module,
+                           [] { return std::string("libil2cpp.so is not loaded yet"); });
             return Result<void>::failure(make_error(ErrorCode::runtime_not_ready, context->core.last_error));
         case Discovery::resolver_not_ready:
             context->core.state = RuntimeState::waiting_for_module;
             context->core.last_error = "configured IL2CPP symbol resolver is not ready";
+            log_state_once(*context, LogPoint::resolver_not_ready, RuntimeState::waiting_for_module,
+                           [] { return std::string("the configured symbol resolver is not ready"); });
             return Result<void>::failure(make_error(ErrorCode::runtime_not_ready, context->core.last_error));
         case Discovery::ready:
             break;
@@ -201,11 +272,15 @@ Result<void> refresh_core(const std::shared_ptr<RuntimeContext>& context) {
         context->core.missing_apis = std::move(missing_core);
         context->core.state = RuntimeState::unsupported;
         context->core.last_error = describe_missing("missing core IL2CPP exports:", context->core.missing_apis);
+        log_state_once(*context, LogPoint::unsupported, RuntimeState::unsupported,
+                       [&context] { return context->core.last_error; });
         return Result<void>::failure(make_error(ErrorCode::unsupported_runtime, context->core.last_error));
     }
     context->core.missing_apis.clear();
 
     context->core.state = RuntimeState::initializing;
+    log_state_once(*context, LogPoint::initializing, RuntimeState::initializing,
+                   [] { return std::string("core exports are complete, resolving the IL2CPP domain"); });
     if (context->domain == nullptr) {
         if (context->api.get_corlib() == nullptr) {
             context->core.last_error = "il2cpp_get_corlib returned null; IL2CPP runtime is not ready";
@@ -244,6 +319,10 @@ Result<void> refresh_core(const std::shared_ptr<RuntimeContext>& context) {
     context->core.state = RuntimeState::ready;
     context->core.last_error.clear();
     context->core.capabilities = available_capabilities(context->api);
+    log_state_once(*context, LogPoint::ready, RuntimeState::ready, [&context, assembly_count] {
+        return "generation=" + std::to_string(context->snapshot.generation) +
+               " assemblies=" + std::to_string(assembly_count);
+    });
     return Result<void>::success();
 }
 
@@ -305,6 +384,13 @@ void cache_class(const std::shared_ptr<RuntimeContext>& context,
     std::lock_guard lock(context->metadata_cache_mutex);
     if (context->class_cache.size() >= kClassCacheLimit) context->class_cache.clear();
     context->class_cache.insert_or_assign(std::move(key), ClassCacheEntry{native, std::move(assembly_name)});
+}
+
+bool mark_lookup_logged(const std::shared_ptr<RuntimeContext>& context, std::string_view key) {
+    if (context == nullptr) return false;
+    std::lock_guard lock(context->metadata_cache_mutex);
+    if (context->logged_lookups.size() >= kMetadataCacheLimit) context->logged_lookups.clear();
+    return context->logged_lookups.emplace(key).second;
 }
 
 } /// namespace INB::detail

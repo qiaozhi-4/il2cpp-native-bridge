@@ -3,6 +3,8 @@
 #include "facade/facade_internal.hpp"
 #include "metadata/metadata_internal.hpp"
 
+#include "logging/internal_log.hpp"
+
 #include <cstddef>
 #include <cstring>
 #include <string>
@@ -136,6 +138,9 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
     binding.descriptor = descriptor;
     binding.path = std::move(path);
     binding.reference_slots = std::move(reference_slots);
+    if constexpr (INB_LOG_ENABLED) {
+        if (mark_lookup_logged(context, binding.path)) INB_LOGD("bind %s", binding.path.c_str());
+    }
     return binding;
 }
 
