@@ -6,13 +6,43 @@
 
 #include <cstring>
 #include <limits>
+#include <map>
 #include <span>
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace INB {
 namespace detail {
 namespace {
+
+/// 描述符缓存的键：代际 + MethodInfo + 方法被解析时所在的类。
+using DescriptorKey = std::tuple<std::uint64_t, const void*, const void*>;
+
+/// 描述符缓存上限；超过后整体清空，避免长期运行积累。
+inline constexpr std::size_t kDescriptorCacheLimit = 4096;
+
+using DescriptorCache = LookupCache<DescriptorKey, MethodDescriptor, std::map<DescriptorKey, MethodDescriptor>>;
+
+DescriptorCache& descriptor_cache() {
+    static DescriptorCache cache{kDescriptorCacheLimit};
+    return cache;
+}
+
+/// 绑定缓存的键：代际 + context + MethodInfo + C++ 签名地址。
+using BindingKey = std::tuple<std::uint64_t, const void*, const void*, const void*>;
+
+/// 绑定缓存上限；超过后整体清空。
+inline constexpr std::size_t kBindingCacheLimit = 2048;
+
+using BindingCache = LookupCache<BindingKey,
+                                 std::shared_ptr<const BoundSignature>,
+                                 std::map<BindingKey, std::shared_ptr<const BoundSignature>>>;
+
+BindingCache& binding_cache() {
+    static BindingCache cache{kBindingCacheLimit};
+    return cache;
+}
 
 ClassHandle class_handle_for(const std::shared_ptr<RuntimeContext>& context,
                              std::uint64_t generation,
@@ -54,6 +84,11 @@ MethodDescriptor descriptor_for(const ReadyView& view,
                                 const Il2CppMethodInfo* method,
                                 Il2CppClass* declaring_class,
                                 std::string_view path) {
+    /// 元数据在一次 runtime 代际内不变，同一 MethodInfo 只枚举一次。
+    const DescriptorKey key{view.generation, method, declaring_class};
+    descriptor_cache().advance(view.generation);
+    if (auto cached = descriptor_cache().find(key)) return *cached;
+
     MethodDescriptor descriptor;
     descriptor.native = detail::opaque(method);
     descriptor.declaring_class = declaring_class;
@@ -84,6 +119,7 @@ MethodDescriptor descriptor_for(const ReadyView& view,
     std::uint32_t implementation_flags = 0;
     const std::uint32_t method_flags = view.api.method_get_flags(method, &implementation_flags);
     descriptor.is_static = (method_flags & kMethodAttributeStatic) != 0;
+    descriptor_cache().insert(key, descriptor);
     return descriptor;
 }
 
@@ -175,6 +211,26 @@ void* detail::unbox_data(const std::shared_ptr<RuntimeContext>& context,
                                  "the boxed value could not be unboxed");
     }
     return data;
+}
+
+std::shared_ptr<const detail::BoundSignature> detail::load_binding(const std::shared_ptr<RuntimeContext>& context,
+                                                                    std::uint64_t generation,
+                                                                    const void* method,
+                                                                    const void* signature) {
+    auto& cache = detail::binding_cache();
+    cache.advance(generation);
+    auto cached = cache.find(BindingKey{generation, context.get(), method, signature});
+    return cached.has_value() ? *cached : nullptr;
+}
+
+void detail::save_binding(const std::shared_ptr<RuntimeContext>& context,
+                          std::uint64_t generation,
+                          const void* method,
+                          const void* signature,
+                          std::shared_ptr<const BoundSignature> binding) {
+    auto& cache = detail::binding_cache();
+    cache.advance(generation);
+    cache.insert(BindingKey{generation, context.get(), method, signature}, std::move(binding));
 }
 
 void detail::require_field_value_type(std::string_view name, std::string_view actual, std::string_view expected) {

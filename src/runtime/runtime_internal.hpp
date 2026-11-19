@@ -3,13 +3,13 @@
 #include "il2cpp_native_bridge/result.hpp"
 #include "il2cpp_native_bridge/runtime_state.hpp"
 #include "runtime/il2cpp_api.hpp"
+#include "runtime/lookup_cache.hpp"
 
 #include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <unordered_set>
 
 namespace INB::detail {
 
@@ -43,7 +43,6 @@ struct CoreSnapshot {
 
 struct RuntimeContext {
     mutable std::mutex mutex;
-    mutable std::mutex metadata_cache_mutex;
     Api api;
     void* module{};
     bool owns_module{};
@@ -55,8 +54,10 @@ struct RuntimeContext {
     /// 缺失的可选导出按能力分组；非注入式解析时填充，用于按需失败诊断。
     std::unordered_map<std::string, std::vector<std::string>> missing_by_group;
     bool injected_api{};
-    std::unordered_map<std::string, void*> metadata_cache;
-    std::unordered_map<std::string, ClassCacheEntry> class_cache;
+    /// 方法/字段/程序集/镜像/类名解析结果；键已含代际。
+    LookupCache<std::string, void*> metadata_cache{kMetadataCacheLimit};
+    /// 类解析结果；保留镜像名，使命中与未命中两条路径返回一致的集合名。
+    LookupCache<std::string, ClassCacheEntry> class_cache{kClassCacheLimit};
     std::unordered_map<std::string, void*> export_overrides;
     /// 导出表是否已打印过解析日志。轮询重试会反复解析，日志只保留第一次。
     bool exports_logged{};

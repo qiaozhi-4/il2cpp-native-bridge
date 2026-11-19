@@ -219,7 +219,6 @@ Result<void> refresh_context(const std::shared_ptr<RuntimeContext>& context) {
 
     if (context->snapshot.generation == 0) {
         ++context->snapshot.generation;
-        std::lock_guard cache_lock(context->metadata_cache_mutex);
         context->metadata_cache.clear();
         context->class_cache.clear();
     }
@@ -317,7 +316,6 @@ Result<void> refresh_core(const std::shared_ptr<RuntimeContext>& context) {
     /// generation 由两个投影共享：先就绪的一方建立，另一方不再提升。
     if (context->snapshot.generation == 0) {
         ++context->snapshot.generation;
-        std::lock_guard cache_lock(context->metadata_cache_mutex);
         context->metadata_cache.clear();
         context->class_cache.clear();
     }
@@ -360,24 +358,20 @@ std::shared_ptr<RuntimeContext> make_testing_context(Api api, Il2CppDomain* doma
 
 void* find_cached_metadata(const std::shared_ptr<RuntimeContext>& context, std::string_view key) {
     if (context == nullptr) return nullptr;
-    std::lock_guard lock(context->metadata_cache_mutex);
-    const auto cached = context->metadata_cache.find(std::string(key));
-    return cached == context->metadata_cache.end() ? nullptr : cached->second;
+    auto cached = context->metadata_cache.find(std::string(key));
+    return cached.has_value() ? *cached : nullptr;
 }
 
 void cache_metadata(const std::shared_ptr<RuntimeContext>& context, std::string key, void* value) {
     if (context == nullptr || value == nullptr) return;
-    std::lock_guard lock(context->metadata_cache_mutex);
-    if (context->metadata_cache.size() >= kMetadataCacheLimit) context->metadata_cache.clear();
-    context->metadata_cache.insert_or_assign(std::move(key), value);
+    context->metadata_cache.insert(std::move(key), value);
 }
 
 bool find_cached_class(const std::shared_ptr<RuntimeContext>& context, std::string_view key, ClassCacheEntry& out) {
     if (context == nullptr) return false;
-    std::lock_guard lock(context->metadata_cache_mutex);
-    const auto cached = context->class_cache.find(std::string(key));
-    if (cached == context->class_cache.end()) return false;
-    out = cached->second;
+    auto cached = context->class_cache.find(std::string(key));
+    if (!cached.has_value()) return false;
+    out = std::move(*cached);
     return true;
 }
 
@@ -386,9 +380,7 @@ void cache_class(const std::shared_ptr<RuntimeContext>& context,
                  Il2CppClass* native,
                  std::string assembly_name) {
     if (context == nullptr || native == nullptr) return;
-    std::lock_guard lock(context->metadata_cache_mutex);
-    if (context->class_cache.size() >= kClassCacheLimit) context->class_cache.clear();
-    context->class_cache.insert_or_assign(std::move(key), ClassCacheEntry{native, std::move(assembly_name)});
+    context->class_cache.insert(std::move(key), ClassCacheEntry{native, std::move(assembly_name)});
 }
 
 } /// namespace INB::detail

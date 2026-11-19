@@ -277,6 +277,37 @@ struct BoundSignature {
     std::vector<bool> reference_slots;
 };
 
+/// 每个模板实参组合的唯一地址，用作绑定缓存的键；不依赖 RTTI。
+template <typename... Signature>
+const void* signature_tag() {
+    static const char tag = 0;
+    return &tag;
+}
+
+/**
+ * 复用已校验的绑定。
+ *
+ * 绑定只取决于「运行时实例 + 代际 + 目标方法 + C++ 签名」，与调用点无关，
+ * 因此按这四项共享：每帧新建的 Method 也能命中，不必每次重新核对签名。
+ *
+ * @param context 句柄所属的 runtime context。
+ * @param generation 句柄创建时的代际。
+ * @param method 唯一的候选 MethodInfo；多候选时调用方不应查缓存。
+ * @param signature `signature_tag` 给出的签名地址。
+ * @return 命中时返回共享绑定，未命中返回空。
+ */
+std::shared_ptr<const BoundSignature> load_binding(const std::shared_ptr<RuntimeContext>& context,
+                                                   std::uint64_t generation,
+                                                   const void* method,
+                                                   const void* signature);
+
+/// 记录一次成功的绑定；同一键已存在时保留先写入的那份。
+void save_binding(const std::shared_ptr<RuntimeContext>& context,
+                  std::uint64_t generation,
+                  const void* method,
+                  const void* signature,
+                  std::shared_ptr<const BoundSignature> binding);
+
 /// 一次安装请求：签名绑定结果 + 用户回调 + 两种槽形态的原生入口。
 struct ReplacementRequest {
     BoundSignature signature;
@@ -734,15 +765,15 @@ public:
         auto values = std::tuple<std::remove_cvref_t<Args>...>(std::forward<Args>(args)...);
         auto pointers = detail::pack_arguments(values, std::index_sequence_for<Args...>{});
         void* raw = detail::invoke_bound(
-                binding_, self, std::span<void*>(pointers.data(), pointers.size()));
-        return detail::convert_result<Return>(binding_, raw);
+                *binding_, self, std::span<void*>(pointers.data(), pointers.size()));
+        return detail::convert_result<Return>(*binding_, raw);
     }
 
 private:
     friend class Method;
-    explicit BoundMethod(detail::BoundSignature binding) : binding_(std::move(binding)) {}
+    explicit BoundMethod(std::shared_ptr<const detail::BoundSignature> binding) : binding_(std::move(binding)) {}
 
-    detail::BoundSignature binding_;
+    std::shared_ptr<const detail::BoundSignature> binding_;
 };
 
 template <typename Return, typename... Args>
@@ -753,6 +784,16 @@ BoundMethod<Return, Args...> Method::typed() const {
                   "method result type has no IL2CPP name mapping");
 
     using CleanReturn = std::remove_cvref_t<Return>;
+    const void* key = detail::signature_tag<Return, Args...>();
+
+    /// 唯一候选才有确定的绑定键；多候选时 bind 会报歧义，不需要缓存。
+    const void* method = candidates_.size() == 1 ? candidates_.front().native : nullptr;
+    if (method != nullptr) {
+        if (auto cached = detail::load_binding(context_, generation_, method, key); cached != nullptr) {
+            return BoundMethod<Return, Args...>(std::move(cached));
+        }
+    }
+
     const std::array<detail::ArgumentSpec, sizeof...(Args)> specifications{
             detail::ArgumentSpec{detail::is_reference_carrier<Args>::value,
                                  detail::is_string_carrier<Args>::value,
@@ -762,7 +803,11 @@ BoundMethod<Return, Args...> Method::typed() const {
                                        detail::is_reference_carrier<CleanReturn>::value,
                                        detail::is_string_carrier<CleanReturn>::value,
                                        managed_type_name<Return>, specifications);
-    return BoundMethod<Return, Args...>(std::move(binding));
+    auto stored = std::make_shared<const detail::BoundSignature>(std::move(binding));
+    if (method != nullptr) {
+        detail::save_binding(context_, generation_, method, key, stored);
+    }
+    return BoundMethod<Return, Args...>(std::move(stored));
 }
 
 template <typename Return, typename... Args>
