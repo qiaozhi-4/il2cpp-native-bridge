@@ -14,111 +14,111 @@
 
 namespace INB::detail {
 
-#if defined(__ANDROID__) || (defined(__linux__) && !defined(__ANDROID__))
-namespace {
+    #if defined(__ANDROID__) || (defined(__linux__) && !defined(__ANDROID__))
+    namespace {
 
-struct RuntimeModule {
-    std::string path;
-    std::uintptr_t load_address{};
-};
+        struct RuntimeModule {
+            std::string path;
+            std::uintptr_t load_address{};
+        };
 
-struct RuntimeModuleSearch {
-    std::vector<RuntimeModule>* modules{};
-};
+        struct RuntimeModuleSearch {
+            std::vector<RuntimeModule>* modules{};
+        };
 
-int find_runtime_module(struct dl_phdr_info* info, std::size_t, void* user_data) {
-    if (info == nullptr || info->dlpi_name == nullptr || info->dlpi_name[0] == '\0') return 0;
+        int find_runtime_module(struct dl_phdr_info* info, std::size_t, void* user_data) {
+            if (info == nullptr || info->dlpi_name == nullptr || info->dlpi_name[0] == '\0') return 0;
 
-    const std::string_view path(info->dlpi_name);
-    const auto slash = path.find_last_of('/');
-    const auto name = slash == std::string_view::npos ? path : path.substr(slash + 1);
-#if defined(__ANDROID__)
-    if (name != "libil2cpp.so") return 0;
-#else
-    if (name != "GameAssembly.so" && name != "libil2cpp.so") return 0;
-#endif
+            const std::string_view path(info->dlpi_name);
+            const auto slash = path.find_last_of('/');
+            const auto name = slash == std::string_view::npos ? path : path.substr(slash + 1);
+        #if defined(__ANDROID__)
+            if (name != "libil2cpp.so") return 0;
+        #else
+            if (name != "GameAssembly.so" && name != "libil2cpp.so") return 0;
+        #endif
 
-    auto* search = static_cast<RuntimeModuleSearch*>(user_data);
-    search->modules->push_back({info->dlpi_name, static_cast<std::uintptr_t>(info->dlpi_addr)});
-    return 0;
-}
+            auto* search = static_cast<RuntimeModuleSearch*>(user_data);
+            search->modules->push_back({info->dlpi_name, static_cast<std::uintptr_t>(info->dlpi_addr)});
+            return 0;
+        }
 
-bool handle_matches_loaded_runtime(void* handle, const std::vector<RuntimeModule>& modules) {
-    if (handle == nullptr) return false;
-    void* domain_get = dlsym(handle, "il2cpp_domain_get");
-    if (domain_get == nullptr) return false;
+        bool handle_matches_loaded_runtime(void* handle, const std::vector<RuntimeModule>& modules) {
+            if (handle == nullptr) return false;
+            void* domain_get = dlsym(handle, "il2cpp_domain_get");
+            if (domain_get == nullptr) return false;
 
-    Dl_info symbol_info{};
-    if (dladdr(domain_get, &symbol_info) == 0 || symbol_info.dli_fbase == nullptr) return false;
-    const auto symbol_load_address = reinterpret_cast<std::uintptr_t>(symbol_info.dli_fbase);
-    for (const auto& module : modules) {
-        if (module.load_address == symbol_load_address) return true;
-    }
-    return false;
-}
+            Dl_info symbol_info{};
+            if (dladdr(domain_get, &symbol_info) == 0 || symbol_info.dli_fbase == nullptr) return false;
+            const auto symbol_load_address = reinterpret_cast<std::uintptr_t>(symbol_info.dli_fbase);
+            for (const auto& module : modules) {
+                if (module.load_address == symbol_load_address) return true;
+            }
+            return false;
+        }
 
-} /// namespace
-#endif
+    } /// namespace
+    #endif
 
-void* find_loaded_runtime_module() {
-#if defined(__ANDROID__)
-#if defined(RTLD_NOLOAD)
-    std::vector<RuntimeModule> modules;
-    RuntimeModuleSearch search{&modules};
-    dl_iterate_phdr(find_runtime_module, &search);
-    for (const auto& candidate : modules) {
-        if (void* module = dlopen(candidate.path.c_str(), RTLD_NOW | RTLD_NOLOAD); module != nullptr) {
+    void* find_loaded_runtime_module() {
+    #if defined(__ANDROID__)
+    #if defined(RTLD_NOLOAD)
+        std::vector<RuntimeModule> modules;
+        RuntimeModuleSearch search{&modules};
+        dl_iterate_phdr(find_runtime_module, &search);
+        for (const auto& candidate : modules) {
+            if (void* module = dlopen(candidate.path.c_str(), RTLD_NOW | RTLD_NOLOAD); module != nullptr) {
+                if (handle_matches_loaded_runtime(module, modules)) {
+                    INB_LOGI("IL2CPP module: %s (base %p)", candidate.path.c_str(),
+                             reinterpret_cast<void*>(candidate.load_address));
+                    return module;
+                }
+                dlclose(module);
+            }
+        }
+        if (void* module = dlopen("libil2cpp.so", RTLD_NOW | RTLD_NOLOAD); module != nullptr) {
             if (handle_matches_loaded_runtime(module, modules)) {
-                INB_LOGI("IL2CPP module: %s (base %p)", candidate.path.c_str(),
-                         reinterpret_cast<void*>(candidate.load_address));
+                INB_LOGI("IL2CPP module: libil2cpp.so (handle %p)", module);
                 return module;
             }
             dlclose(module);
         }
-    }
-    if (void* module = dlopen("libil2cpp.so", RTLD_NOW | RTLD_NOLOAD); module != nullptr) {
-        if (handle_matches_loaded_runtime(module, modules)) {
-            INB_LOGI("IL2CPP module: libil2cpp.so (handle %p)", module);
-            return module;
-        }
-        dlclose(module);
-    }
-    return nullptr;
-#else
-    return nullptr;
-#endif
-#elif defined(__linux__)
-    std::vector<RuntimeModule> modules;
-    RuntimeModuleSearch search{&modules};
-    dl_iterate_phdr(find_runtime_module, &search);
-#if defined(RTLD_NOLOAD)
-    for (const auto& candidate : modules) {
-        if (void* module = dlopen(candidate.path.c_str(), RTLD_NOW | RTLD_NOLOAD); module != nullptr) {
-            if (handle_matches_loaded_runtime(module, modules)) {
-                INB_LOGI("runtime module: %s (base %p)", candidate.path.c_str(),
-                         reinterpret_cast<void*>(candidate.load_address));
-                return module;
+        return nullptr;
+    #else
+        return nullptr;
+    #endif
+    #elif defined(__linux__)
+        std::vector<RuntimeModule> modules;
+        RuntimeModuleSearch search{&modules};
+        dl_iterate_phdr(find_runtime_module, &search);
+    #if defined(RTLD_NOLOAD)
+        for (const auto& candidate : modules) {
+            if (void* module = dlopen(candidate.path.c_str(), RTLD_NOW | RTLD_NOLOAD); module != nullptr) {
+                if (handle_matches_loaded_runtime(module, modules)) {
+                    INB_LOGI("runtime module: %s (base %p)", candidate.path.c_str(),
+                             reinterpret_cast<void*>(candidate.load_address));
+                    return module;
+                }
+                dlclose(module);
             }
+        }
+        return nullptr;
+    #else
+        return nullptr;
+    #endif
+    #else
+        return nullptr;
+    #endif
+    }
+
+    void close_runtime_module(void* module) {
+        if (module != nullptr) {
             dlclose(module);
         }
     }
-    return nullptr;
-#else
-    return nullptr;
-#endif
-#else
-    return nullptr;
-#endif
-}
 
-void close_runtime_module(void* module) {
-    if (module != nullptr) {
-        dlclose(module);
+    void* lookup_runtime_symbol(void* module, const char* name) {
+        return module == nullptr || name == nullptr ? nullptr : dlsym(module, name);
     }
-}
-
-void* lookup_runtime_symbol(void* module, const char* name) {
-    return module == nullptr || name == nullptr ? nullptr : dlsym(module, name);
-}
 
 } /// namespace INB::detail

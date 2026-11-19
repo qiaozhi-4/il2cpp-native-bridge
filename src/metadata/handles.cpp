@@ -9,277 +9,277 @@
 
 namespace INB::detail {
 
-Result<void> validate_class_handle(const ClassHandle& klass) {
-    if (klass.native == nullptr || klass.context == nullptr) {
-        return Result<void>::failure(make_error(ErrorCode::invalid_argument, "class handle is empty"));
+    Result<void> validate_class_handle(const ClassHandle& klass) {
+        if (klass.native == nullptr || klass.context == nullptr) {
+            return Result<void>::failure(make_error(ErrorCode::invalid_argument, "class handle is empty"));
+        }
+        auto ready = require_ready(klass.context);
+        if (!ready) return ready;
+        if (klass.generation != generation_for(klass.context)) {
+            return Result<void>::failure(make_error(ErrorCode::stale_handle, "class handle belongs to a previous runtime generation"));
+        }
+        return Result<void>::success();
     }
-    auto ready = require_ready(klass.context);
-    if (!ready) return ready;
-    if (klass.generation != generation_for(klass.context)) {
-        return Result<void>::failure(make_error(ErrorCode::stale_handle, "class handle belongs to a previous runtime generation"));
-    }
-    return Result<void>::success();
-}
 
-Result<void> validate_method_handle(const MethodHandle& method) {
-    if (method.native == nullptr) {
-        return Result<void>::failure(make_error(ErrorCode::invalid_argument, "method handle is empty"));
+    Result<void> validate_method_handle(const MethodHandle& method) {
+        if (method.native == nullptr) {
+            return Result<void>::failure(make_error(ErrorCode::invalid_argument, "method handle is empty"));
+        }
+        return validate_class_handle(method.declaring_class);
     }
-    return validate_class_handle(method.declaring_class);
-}
 
-Result<void> validate_field_handle(const FieldHandle& field) {
-    if (field.native == nullptr) {
-        return Result<void>::failure(make_error(ErrorCode::invalid_argument, "field handle is empty"));
+    Result<void> validate_field_handle(const FieldHandle& field) {
+        if (field.native == nullptr) {
+            return Result<void>::failure(make_error(ErrorCode::invalid_argument, "field handle is empty"));
+        }
+        return validate_class_handle(field.declaring_class);
     }
-    return validate_class_handle(field.declaring_class);
-}
 
-Result<std::string> managed_name(const Api& api, const Il2CppType* type) {
-    if (api.type_get_name == nullptr || type == nullptr) {
-        return Result<std::string>::failure(make_error(ErrorCode::missing_api, "managed type name is unavailable"));
+    Result<std::string> managed_name(const Api& api, const Il2CppType* type) {
+        if (api.type_get_name == nullptr || type == nullptr) {
+            return Result<std::string>::failure(make_error(ErrorCode::missing_api, "managed type name is unavailable"));
+        }
+        char* raw_name = api.type_get_name(type);
+        if (raw_name == nullptr) {
+            return Result<std::string>::failure(make_error(ErrorCode::type_mismatch, "IL2CPP returned an empty type name"));
+        }
+        std::string name(raw_name);
+        if (api.free_memory != nullptr) api.free_memory(raw_name);
+        if (name.starts_with("class ")) name.erase(0, 6);
+        if (name.starts_with("valuetype ")) name.erase(0, 10);
+        if (name == "void") name = "System.Void";
+        return Result<std::string>::success(std::move(name));
     }
-    char* raw_name = api.type_get_name(type);
-    if (raw_name == nullptr) {
-        return Result<std::string>::failure(make_error(ErrorCode::type_mismatch, "IL2CPP returned an empty type name"));
+
+    bool assembly_name_matches(std::string_view image_name, std::string_view requested_name) {
+        if (image_name == requested_name) return true;
+        constexpr std::string_view dll_suffix = ".dll";
+        if (image_name.ends_with(dll_suffix) &&
+            image_name.substr(0, image_name.size() - dll_suffix.size()) == requested_name) {
+            return true;
+        }
+        return requested_name.ends_with(dll_suffix) &&
+               requested_name.substr(0, requested_name.size() - dll_suffix.size()) == image_name;
     }
-    std::string name(raw_name);
-    if (api.free_memory != nullptr) api.free_memory(raw_name);
-    if (name.starts_with("class ")) name.erase(0, 6);
-    if (name.starts_with("valuetype ")) name.erase(0, 10);
-    if (name == "void") name = "System.Void";
-    return Result<std::string>::success(std::move(name));
-}
 
-bool assembly_name_matches(std::string_view image_name, std::string_view requested_name) {
-    if (image_name == requested_name) return true;
-    constexpr std::string_view dll_suffix = ".dll";
-    if (image_name.ends_with(dll_suffix) &&
-        image_name.substr(0, image_name.size() - dll_suffix.size()) == requested_name) {
-        return true;
+    Runtime make_testing_runtime(Api api, Il2CppDomain* domain) {
+        auto context = make_testing_context(api, domain);
+        context->injected_api = true;
+        context->snapshot.generation = domain == nullptr ? 0 : 1;
+        context->snapshot.state = domain == nullptr ? RuntimeState::initializing : RuntimeState::ready;
+        return Runtime(std::move(context));
     }
-    return requested_name.ends_with(dll_suffix) &&
-           requested_name.substr(0, requested_name.size() - dll_suffix.size()) == image_name;
-}
 
-Runtime make_testing_runtime(Api api, Il2CppDomain* domain) {
-    auto context = make_testing_context(api, domain);
-    context->injected_api = true;
-    context->snapshot.generation = domain == nullptr ? 0 : 1;
-    context->snapshot.state = domain == nullptr ? RuntimeState::initializing : RuntimeState::ready;
-    return Runtime(std::move(context));
-}
-
-std::shared_ptr<RuntimeContext> current_runtime_context() {
-    static const auto context = make_runtime_context();
-    return context;
-}
+    std::shared_ptr<RuntimeContext> current_runtime_context() {
+        static const auto context = make_runtime_context();
+        return context;
+    }
 
 } /// namespace INB::detail
 
 namespace INB {
 
-Runtime Runtime::current() {
-    const auto context = detail::current_runtime_context();
-    (void) detail::refresh_context(context);
-    return Runtime(context);
-}
-
-void Runtime::set_symbol_lookup(void* module,
-                                RuntimeSymbolLookup lookup,
-                                RuntimeSymbolLookupReady is_ready) {
-    if (module == nullptr || lookup == nullptr) {
-        detail::report_diagnostic(ErrorStage::none, {}, "fatal",
-                                  "module and IL2CPP symbol lookup are required");
-        std::abort();
+    Runtime Runtime::current() {
+        const auto context = detail::current_runtime_context();
+        (void) detail::refresh_context(context);
+        return Runtime(context);
     }
 
-    const auto context = detail::current_runtime_context();
-    void* previous_owned_module = nullptr;
-    {
-        std::lock_guard lock(context->mutex);
-        /// 相同参数重复配置没有副作用；调用方无需自行记录是否已配置。
-        if (context->module == module && context->symbol_lookup == lookup &&
-            context->symbol_lookup_ready == is_ready) {
-            return;
-        }
-        if (context->snapshot.state == RuntimeState::ready || context->snapshot.generation != 0) {
+    void Runtime::set_symbol_lookup(void* module,
+                                    RuntimeSymbolLookup lookup,
+                                    RuntimeSymbolLookupReady is_ready) {
+        if (module == nullptr || lookup == nullptr) {
             detail::report_diagnostic(ErrorStage::none, {}, "fatal",
-                                      "IL2CPP symbol lookup must be configured before initialization");
+                                      "module and IL2CPP symbol lookup are required");
             std::abort();
         }
-        if (context->owns_module && context->module != nullptr && context->module != module) {
-            previous_owned_module = context->module;
+
+        const auto context = detail::current_runtime_context();
+        void* previous_owned_module = nullptr;
+        {
+            std::lock_guard lock(context->mutex);
+            /// 相同参数重复配置没有副作用；调用方无需自行记录是否已配置。
+            if (context->module == module && context->symbol_lookup == lookup &&
+                context->symbol_lookup_ready == is_ready) {
+                return;
+            }
+            if (context->snapshot.state == RuntimeState::ready || context->snapshot.generation != 0) {
+                detail::report_diagnostic(ErrorStage::none, {}, "fatal",
+                                          "IL2CPP symbol lookup must be configured before initialization");
+                std::abort();
+            }
+            if (context->owns_module && context->module != nullptr && context->module != module) {
+                previous_owned_module = context->module;
+            }
+            context->module = module;
+            context->owns_module = false;
+            context->symbol_lookup = lookup;
+            context->symbol_lookup_ready = is_ready;
+            context->api = {};
+            context->domain = nullptr;
+            context->snapshot.state = RuntimeState::waiting_for_module;
+            context->snapshot.last_error.clear();
+            context->snapshot.missing_apis.clear();
+            context->snapshot.missing_optional_apis.clear();
+            /// 换了模块或解析器等于重新发现一次，日志点随之下一次解析重新打印。
+            context->exports_logged = false;
+            context->logged_points = 0;
         }
-        context->module = module;
-        context->owns_module = false;
-        context->symbol_lookup = lookup;
-        context->symbol_lookup_ready = is_ready;
-        context->api = {};
-        context->domain = nullptr;
-        context->snapshot.state = RuntimeState::waiting_for_module;
-        context->snapshot.last_error.clear();
-        context->snapshot.missing_apis.clear();
-        context->snapshot.missing_optional_apis.clear();
-        /// 换了模块或解析器等于重新发现一次，日志点随之下一次解析重新打印。
-        context->exports_logged = false;
-        context->logged_points = 0;
-    }
-    if (previous_owned_module != nullptr) detail::close_runtime_module(previous_owned_module);
-    INB_LOGI("symbol resolver configured (module %p)", module);
-}
-
-Result<void> Runtime::set_export_override(std::string_view symbol_name, void* address) {
-    if (!symbol_name.starts_with("il2cpp_") || address == nullptr) {
-        return Result<void>::failure(make_error(ErrorCode::invalid_argument,
-            "an IL2CPP symbol name and non-null export address are required"));
+        if (previous_owned_module != nullptr) detail::close_runtime_module(previous_owned_module);
+        INB_LOGI("symbol resolver configured (module %p)", module);
     }
 
-    const auto context = detail::current_runtime_context();
-    std::lock_guard lock(context->mutex);
-    if (context->snapshot.state == RuntimeState::ready || context->snapshot.generation != 0) {
-        return Result<void>::failure(make_error(ErrorCode::invalid_argument,
-            "IL2CPP export overrides must be registered before the runtime becomes ready"));
-    }
-    context->export_overrides.insert_or_assign(std::string(symbol_name), address);
-    return Result<void>::success();
-}
+    Result<void> Runtime::set_export_override(std::string_view symbol_name, void* address) {
+        if (!symbol_name.starts_with("il2cpp_") || address == nullptr) {
+            return Result<void>::failure(make_error(ErrorCode::invalid_argument,
+                "an IL2CPP symbol name and non-null export address are required"));
+        }
 
-RuntimeSnapshot Runtime::snapshot() const {
-    (void) detail::refresh_context(context_);
-    if (context_ == nullptr) return {};
-    std::lock_guard lock(context_->mutex);
-    return context_->snapshot;
-}
-
-Result<void> Runtime::refresh() const {
-    return detail::refresh_context(context_);
-}
-
-Result<void> Runtime::with_attached_thread(const std::function<Result<void>()>& action) const {
-    if (!action) {
-        return Result<void>::failure(make_error(ErrorCode::invalid_argument,
-            "runtime action must not be empty"));
+        const auto context = detail::current_runtime_context();
+        std::lock_guard lock(context->mutex);
+        if (context->snapshot.state == RuntimeState::ready || context->snapshot.generation != 0) {
+            return Result<void>::failure(make_error(ErrorCode::invalid_argument,
+                "IL2CPP export overrides must be registered before the runtime becomes ready"));
+        }
+        context->export_overrides.insert_or_assign(std::string(symbol_name), address);
+        return Result<void>::success();
     }
 
-    auto attachment = detail::acquire_thread(context_);
-    if (!attachment) return Result<void>::failure(attachment.error());
-    return action();
-}
-
-Result<std::vector<ClassQuery>> Runtime::classes(std::string_view name_filter) const {
-    auto resolved = detail::resolve_classes(context_, name_filter);
-    if (!resolved) return Result<std::vector<ClassQuery>>::failure(resolved.error());
-
-    std::vector<ClassQuery> result;
-    result.reserve(resolved.value().size());
-    for (auto& handle : resolved.value()) {
-        result.push_back(ClassQuery(*this, Result<ClassHandle>::success(std::move(handle))));
+    RuntimeSnapshot Runtime::snapshot() const {
+        (void) detail::refresh_context(context_);
+        if (context_ == nullptr) return {};
+        std::lock_guard lock(context_->mutex);
+        return context_->snapshot;
     }
-    return Result<std::vector<ClassQuery>>::success(std::move(result));
-}
 
-ClassQuery Runtime::klass(std::string_view fully_qualified_name) const {
-    return ClassQuery(*this, std::string(fully_qualified_name), std::nullopt);
-}
-
-ClassQuery Runtime::klass_of(Il2CppObject* instance) const {
-    return ClassQuery(*this, detail::resolve_object_class(context_, instance));
-}
-
-ClassQuery Runtime::base_class(const ClassQuery& query) const {
-    if (!query.result_) return ClassQuery(*this, query.result_);
-    const auto api = detail::api_for(context_);
-    if (api.class_get_parent == nullptr || api.class_get_name == nullptr || api.class_get_namespace == nullptr) {
-        return ClassQuery(*this, Result<ClassHandle>::failure(make_error(ErrorCode::missing_api,
-            "IL2CPP class parent APIs are unavailable")));
+    Result<void> Runtime::refresh() const {
+        return detail::refresh_context(context_);
     }
-    Il2CppClass* parent = api.class_get_parent(query.result_.value().native);
-    if (parent == nullptr) {
-        return ClassQuery(*this, Result<ClassHandle>::failure(make_error(ErrorCode::not_found,
-            "managed class has no parent: " + query.result_.value().full_name)));
+
+    Result<void> Runtime::with_attached_thread(const std::function<Result<void>()>& action) const {
+        if (!action) {
+            return Result<void>::failure(make_error(ErrorCode::invalid_argument,
+                "runtime action must not be empty"));
+        }
+
+        auto attachment = detail::acquire_thread(context_);
+        if (!attachment) return Result<void>::failure(attachment.error());
+        return action();
     }
-    const char* name = api.class_get_name(parent);
-    const char* name_space = api.class_get_namespace(parent);
-    if (name == nullptr || *name == '\0') {
-        return ClassQuery(*this, Result<ClassHandle>::failure(make_error(ErrorCode::not_found,
-            "parent class has no name")));
+
+    Result<std::vector<ClassQuery>> Runtime::classes(std::string_view name_filter) const {
+        auto resolved = detail::resolve_classes(context_, name_filter);
+        if (!resolved) return Result<std::vector<ClassQuery>>::failure(resolved.error());
+
+        std::vector<ClassQuery> result;
+        result.reserve(resolved.value().size());
+        for (auto& handle : resolved.value()) {
+            result.push_back(ClassQuery(*this, Result<ClassHandle>::success(std::move(handle))));
+        }
+        return Result<std::vector<ClassQuery>>::success(std::move(result));
     }
-    std::string full_name = (name_space != nullptr && *name_space != '\0')
-                                    ? std::string(name_space) + "." + name
-                                    : std::string(name);
-    return ClassQuery(*this, full_name, query.result_.value().assembly_name);
-}
 
-ClassQuery Runtime::generic_class(std::string_view generic_type_name,
-                                  std::span<const std::string_view> type_arguments,
-                                  std::optional<std::string_view> assembly_name) const {
-    std::optional<std::string> assembly;
-    if (assembly_name.has_value()) assembly = std::string(*assembly_name);
-    return ClassQuery(*this, detail::resolve_generic_class(context_, generic_type_name,
-                                                            type_arguments, assembly));
-}
-
-Result<ClassHandle> Runtime::class_by_name(std::string_view fully_qualified_name,
-                                           std::optional<std::string> assembly_name) const {
-    return detail::resolve_class(context_, fully_qualified_name, assembly_name);
-}
-
-ClassQuery::ClassQuery(Runtime runtime, std::string full_name, std::optional<std::string> assembly_name)
-    : runtime_(std::move(runtime)), full_name_(std::move(full_name)), assembly_name_(std::move(assembly_name)),
-      result_(detail::resolve_class(runtime_.context_, full_name_, assembly_name_)) {}
-
-ClassQuery::ClassQuery(Runtime runtime, Result<ClassHandle> result)
-    : runtime_(std::move(runtime)), result_(std::move(result)) {
-    if (result_) full_name_ = result_.value().full_name;
-}
-
-ClassQuery ClassQuery::in_assembly(std::string_view assembly_name) const {
-    /// 已解析且程序集匹配时直接复用，避免构造新的 ClassQuery 触发第二次全量扫描。
-    if (result_ && detail::assembly_name_matches(result_.value().assembly_name, assembly_name)) {
-        return ClassQuery(runtime_, result_);
+    ClassQuery Runtime::klass(std::string_view fully_qualified_name) const {
+        return ClassQuery(*this, std::string(fully_qualified_name), std::nullopt);
     }
-    return ClassQuery(runtime_, full_name_, std::string(assembly_name));
-}
 
-FieldQuery<Il2CppObject*> ClassQuery::object_field(std::string_view name) const {
-    return FieldQuery<Il2CppObject*>(find_field(name, {}));
-}
+    ClassQuery Runtime::klass_of(Il2CppObject* instance) const {
+        return ClassQuery(*this, detail::resolve_object_class(context_, instance));
+    }
 
-FieldQuery<Il2CppObject*> ClassQuery::boxed_field(std::string_view name) const {
-    return FieldQuery<Il2CppObject*>(find_field(name, {}));
-}
+    ClassQuery Runtime::base_class(const ClassQuery& query) const {
+        if (!query.result_) return ClassQuery(*this, query.result_);
+        const auto api = detail::api_for(context_);
+        if (api.class_get_parent == nullptr || api.class_get_name == nullptr || api.class_get_namespace == nullptr) {
+            return ClassQuery(*this, Result<ClassHandle>::failure(make_error(ErrorCode::missing_api,
+                "IL2CPP class parent APIs are unavailable")));
+        }
+        Il2CppClass* parent = api.class_get_parent(query.result_.value().native);
+        if (parent == nullptr) {
+            return ClassQuery(*this, Result<ClassHandle>::failure(make_error(ErrorCode::not_found,
+                "managed class has no parent: " + query.result_.value().full_name)));
+        }
+        const char* name = api.class_get_name(parent);
+        const char* name_space = api.class_get_namespace(parent);
+        if (name == nullptr || *name == '\0') {
+            return ClassQuery(*this, Result<ClassHandle>::failure(make_error(ErrorCode::not_found,
+                "parent class has no name")));
+        }
+        std::string full_name = (name_space != nullptr && *name_space != '\0')
+                                        ? std::string(name_space) + "." + name
+                                        : std::string(name);
+        return ClassQuery(*this, full_name, query.result_.value().assembly_name);
+    }
 
-Result<MethodHandle> ClassQuery::find_method(std::string_view name,
-                                             std::string_view return_type,
-                                             std::vector<std::string> parameter_types) const {
-    if (!result_) return Result<MethodHandle>::failure(result_.error());
-    return detail::resolve_method(result_.value(), name, return_type, parameter_types);
-}
+    ClassQuery Runtime::generic_class(std::string_view generic_type_name,
+                                      std::span<const std::string_view> type_arguments,
+                                      std::optional<std::string_view> assembly_name) const {
+        std::optional<std::string> assembly;
+        if (assembly_name.has_value()) assembly = std::string(*assembly_name);
+        return ClassQuery(*this, detail::resolve_generic_class(context_, generic_type_name,
+                                                                type_arguments, assembly));
+    }
 
-Result<MethodHandle> ClassQuery::find_method_by_arity(std::string_view name, std::size_t parameter_count) const {
-    if (!result_) return Result<MethodHandle>::failure(result_.error());
-    return detail::resolve_method_by_arity(result_.value(), name, parameter_count);
-}
+    Result<ClassHandle> Runtime::class_by_name(std::string_view fully_qualified_name,
+                                               std::optional<std::string> assembly_name) const {
+        return detail::resolve_class(context_, fully_qualified_name, assembly_name);
+    }
 
-Result<FieldHandle> ClassQuery::find_field(std::string_view name, std::string_view value_type) const {
-    if (!result_) return Result<FieldHandle>::failure(result_.error());
-    return detail::resolve_field(result_.value(), name, value_type);
-}
+    ClassQuery::ClassQuery(Runtime runtime, std::string full_name, std::optional<std::string> assembly_name)
+        : runtime_(std::move(runtime)), full_name_(std::move(full_name)), assembly_name_(std::move(assembly_name)),
+          result_(detail::resolve_class(runtime_.context_, full_name_, assembly_name_)) {}
 
-Result<std::vector<FieldHandle>> ClassQuery::fields() const {
-    if (!result_) return Result<std::vector<FieldHandle>>::failure(result_.error());
-    return detail::resolve_fields(result_.value());
-}
+    ClassQuery::ClassQuery(Runtime runtime, Result<ClassHandle> result)
+        : runtime_(std::move(runtime)), result_(std::move(result)) {
+        if (result_) full_name_ = result_.value().full_name;
+    }
 
-Result<std::vector<MethodMetadata>> ClassQuery::methods() const {
-    if (!result_) return Result<std::vector<MethodMetadata>>::failure(result_.error());
-    return detail::resolve_methods(result_.value());
-}
+    ClassQuery ClassQuery::in_assembly(std::string_view assembly_name) const {
+        /// 已解析且程序集匹配时直接复用，避免构造新的 ClassQuery 触发第二次全量扫描。
+        if (result_ && detail::assembly_name_matches(result_.value().assembly_name, assembly_name)) {
+            return ClassQuery(runtime_, result_);
+        }
+        return ClassQuery(runtime_, full_name_, std::string(assembly_name));
+    }
 
-Result<Il2CppObject*> ClassQuery::new_object() const {
-    if (!result_) return Result<Il2CppObject*>::failure(result_.error());
-    return detail::allocate_object(result_.value());
-}
+    FieldQuery<Il2CppObject*> ClassQuery::object_field(std::string_view name) const {
+        return FieldQuery<Il2CppObject*>(find_field(name, {}));
+    }
+
+    FieldQuery<Il2CppObject*> ClassQuery::boxed_field(std::string_view name) const {
+        return FieldQuery<Il2CppObject*>(find_field(name, {}));
+    }
+
+    Result<MethodHandle> ClassQuery::find_method(std::string_view name,
+                                                 std::string_view return_type,
+                                                 std::vector<std::string> parameter_types) const {
+        if (!result_) return Result<MethodHandle>::failure(result_.error());
+        return detail::resolve_method(result_.value(), name, return_type, parameter_types);
+    }
+
+    Result<MethodHandle> ClassQuery::find_method_by_arity(std::string_view name, std::size_t parameter_count) const {
+        if (!result_) return Result<MethodHandle>::failure(result_.error());
+        return detail::resolve_method_by_arity(result_.value(), name, parameter_count);
+    }
+
+    Result<FieldHandle> ClassQuery::find_field(std::string_view name, std::string_view value_type) const {
+        if (!result_) return Result<FieldHandle>::failure(result_.error());
+        return detail::resolve_field(result_.value(), name, value_type);
+    }
+
+    Result<std::vector<FieldHandle>> ClassQuery::fields() const {
+        if (!result_) return Result<std::vector<FieldHandle>>::failure(result_.error());
+        return detail::resolve_fields(result_.value());
+    }
+
+    Result<std::vector<MethodMetadata>> ClassQuery::methods() const {
+        if (!result_) return Result<std::vector<MethodMetadata>>::failure(result_.error());
+        return detail::resolve_methods(result_.value());
+    }
+
+    Result<Il2CppObject*> ClassQuery::new_object() const {
+        if (!result_) return Result<Il2CppObject*>::failure(result_.error());
+        return detail::allocate_object(result_.value());
+    }
 
 } /// namespace INB
