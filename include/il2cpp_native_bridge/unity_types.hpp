@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bridge.hpp"
+#include "detail_types.hpp"
 
 #include <string_view>
 

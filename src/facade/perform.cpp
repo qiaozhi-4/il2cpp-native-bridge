@@ -208,21 +208,17 @@ void report_and_throw(ErrorCode code, ErrorStage stage, std::string path, std::s
     throw BridgeError(make_error(code, stage, std::move(path), std::move(message)));
 }
 
-void fail(ErrorCode code, ErrorStage stage, std::string path, std::string message) {
-    report_and_throw(code, stage, std::move(path), std::move(message));
-}
-
 const ReadyView& require_scope_for(const std::shared_ptr<RuntimeContext>& context,
                                    std::uint64_t generation,
                                    std::string_view path) {
     const auto& view = require_access_scope();
     if (view.context != context) {
-        fail(ErrorCode::scope_violation, ErrorStage::scope, std::string(path),
-             "the handle belongs to a different runtime context");
+        report_and_throw(ErrorCode::scope_violation, ErrorStage::scope, std::string(path),
+                         "the handle belongs to a different runtime context");
     }
     if (view.generation != generation) {
-        fail(ErrorCode::stale_handle, ErrorStage::lookup, std::string(path),
-             "the handle belongs to a previous runtime generation");
+        report_and_throw(ErrorCode::stale_handle, ErrorStage::lookup, std::string(path),
+                         "the handle belongs to a previous runtime generation");
     }
     return view;
 }
@@ -318,13 +314,18 @@ void FacadeExecutor::run_action(PerformRequest& request, const ReadyView& view) 
         AccessScope scope(view.context);
         outcome = request.action();
     } catch (const BridgeError& error) {
+        /// 首次发现处已经打印过日志，这里只把结构化错误带回结果。
         outcome = Result<void>::failure(error.error());
     } catch (const std::exception& error) {
-        outcome = Result<void>::failure(make_error(ErrorCode::internal_error, ErrorStage::none, {},
-                                                   std::string("perform action threw: ") + error.what()));
+        const auto failure = make_error(ErrorCode::internal_error, ErrorStage::none, {},
+                                        std::string("perform action threw: ") + error.what());
+        report_diagnostic(failure.stage, failure.path, "failure", failure.message);
+        outcome = Result<void>::failure(failure);
     } catch (...) {
-        outcome = Result<void>::failure(make_error(ErrorCode::internal_error, ErrorStage::none, {},
-                                                   "perform action threw an unknown exception"));
+        const auto failure = make_error(ErrorCode::internal_error, ErrorStage::none, {},
+                                        "perform action threw an unknown exception");
+        report_diagnostic(failure.stage, failure.path, "failure", failure.message);
+        outcome = Result<void>::failure(failure);
     }
     finish(request, outcome);
 }
@@ -333,11 +334,8 @@ void FacadeExecutor::finish(PerformRequest& request, const Result<void>& outcome
     /// 结果确定后立即释放 action/options 捕获；completion 本身不在作用域内执行。
     request.action = nullptr;
     request.on_wait = nullptr;
-    if (!outcome) {
-        report_diagnostic(outcome.error().stage, outcome.error().path, "failure", outcome.error().message);
-    } else {
-        log_perform_elapsed("done", request.request_id, request.submitted_at);
-    }
+    /// 失败已在首次发现处或创建处打印，这里不再重复报告。
+    if (outcome) log_perform_elapsed("done", request.request_id, request.submitted_at);
 
     if (request.completion) {
         auto completion = std::move(request.completion);
@@ -355,8 +353,10 @@ Result<ReadyView> FacadeExecutor::wait_for_core_ready(PerformRequest& request) {
     while (true) {
         const auto context = context_.lock();
         if (context == nullptr) {
-            return Result<ReadyView>::failure(make_error(ErrorCode::internal_error, ErrorStage::readiness, {},
-                                                         "the runtime context was destroyed before the request ran"));
+            const auto failure = make_error(ErrorCode::internal_error, ErrorStage::readiness, {},
+                                            "the runtime context was destroyed before the request ran");
+            report_diagnostic(failure.stage, failure.path, "failure", failure.message);
+            return Result<ReadyView>::failure(failure);
         }
 
         auto refreshed = refresh_core(context);
@@ -365,6 +365,8 @@ Result<ReadyView> FacadeExecutor::wait_for_core_ready(PerformRequest& request) {
             if (view) return view;
         } else if (refreshed.error().code != ErrorCode::runtime_not_ready) {
             /// 核心能力不可继续：请求失败一次，不执行 action。
+            report_diagnostic(refreshed.error().stage, refreshed.error().path, "failure",
+                              refreshed.error().message);
             return Result<ReadyView>::failure(refreshed.error());
         }
 
@@ -386,8 +388,10 @@ Result<ReadyView> FacadeExecutor::wait_for_core_ready(PerformRequest& request) {
         std::unique_lock lock(mutex_);
         wake_.wait_for(lock, kPerformPollInterval, [this] { return stopping_; });
         if (stopping_) {
-            return Result<ReadyView>::failure(make_error(ErrorCode::internal_error, ErrorStage::readiness, {},
-                                                         "the facade executor stopped while waiting for IL2CPP"));
+            const auto failure = make_error(ErrorCode::internal_error, ErrorStage::readiness, {},
+                                            "the facade executor stopped while waiting for IL2CPP");
+            report_diagnostic(failure.stage, failure.path, "failure", failure.message);
+            return Result<ReadyView>::failure(failure);
         }
     }
 }

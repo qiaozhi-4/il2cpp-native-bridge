@@ -135,6 +135,24 @@ const ReplacementRecordHeader* current_replacement_record();
 /// 首次发现失败时打印 error 日志并抛出；所有门面抛出点统一走这里。
 [[noreturn]] void report_and_throw(ErrorCode code, ErrorStage stage, std::string path, std::string message);
 
+/// 字段值类型核对：字段托管名与请求的 C++ 类型不一致时，在首次发现处报错。
+void require_field_value_type(std::string_view name, std::string_view actual, std::string_view expected);
+
+/**
+ * 字段读写的类型门槛：只允许按字节可复制的类型，且必须有托管类型名映射。
+ *
+ * 字段读写按 `sizeof(T)` 落盘，非平凡类型（如 Object、std::string）会把指针写进
+ * 对象头部；没有映射的类型无法与字段声明类型比对，两者都必须在编译期挡住。
+ */
+template <typename T>
+void check_field_value_type(std::string_view actual, std::string_view name) {
+    static_assert(std::is_trivially_copyable_v<T>, "field value type must be trivially copyable");
+    static_assert(has_managed_name<T>::value, "field value type has no IL2CPP name mapping");
+    if constexpr (has_managed_name<T>::value) {
+        require_field_value_type(name, actual, managed_type_name<T>);
+    }
+}
+
 /**
  * 回调内的运行时访问作用域：让用户在 replacement 回调里也能使用 `Il2Cpp::domain()` 等 API。
  *
@@ -346,7 +364,7 @@ std::uint32_t gchandle_new(const std::shared_ptr<RuntimeContext>& context,
                            bool pinned,
                            bool weak);
 void gchandle_free(const std::shared_ptr<RuntimeContext>& context, std::uint32_t handle);
-void* gchandle_target(const std::shared_ptr<RuntimeContext>& context, std::uint32_t handle);
+void* gchandle_target(const std::shared_ptr<RuntimeContext>& context, std::uint64_t generation, std::uint32_t handle);
 
 /// 字符串与数组访问。
 std::string string_content(const std::shared_ptr<RuntimeContext>& context,
@@ -362,6 +380,16 @@ void* array_element(const std::shared_ptr<RuntimeContext>& context,
 void* unbox_value(const std::shared_ptr<RuntimeContext>& context,
                   std::uint64_t generation,
                   void* boxed);
+
+/// 视图入口的类型核对：对象类别不符时在首次发现处报错，不做指针重解释。
+void require_string_object(const std::shared_ptr<RuntimeContext>& context,
+                           std::uint64_t generation,
+                           void* object,
+                           std::string_view path);
+void require_array_object(const std::shared_ptr<RuntimeContext>& context,
+                          std::uint64_t generation,
+                          void* object,
+                          std::string_view path);
 
 /**
  * 实参打包：引用类型传对象指针值，基础类型传值地址。
@@ -578,6 +606,7 @@ class Field {
 public:
     template <typename T>
     [[nodiscard]] T get() const {
+        detail::check_field_value_type<T>(value_type_, name_);
         T value{};
         detail::field_read(context_, generation_, native_, declaring_class_, instance_, &value, sizeof(T), is_static_);
         return value;
@@ -585,6 +614,7 @@ public:
 
     template <typename T>
     void set(const T& value) const {
+        detail::check_field_value_type<T>(value_type_, name_);
         detail::field_write(context_, generation_, native_, declaring_class_, instance_, &value, sizeof(T), is_static_);
     }
 
@@ -676,6 +706,7 @@ private:
 
 template <typename T>
 T Field::get(const Object& instance) const {
+    detail::check_field_value_type<T>(value_type_, name_);
     T value{};
     detail::field_read(context_, generation_, native_, declaring_class_,
                        static_cast<void*>(instance.native_handle()), &value, sizeof(T), is_static_);
@@ -684,6 +715,7 @@ T Field::get(const Object& instance) const {
 
 template <typename T>
 void Field::set(const T& value, const Object& instance) const {
+    detail::check_field_value_type<T>(value_type_, name_);
     detail::field_write(context_, generation_, native_, declaring_class_,
                         static_cast<void*>(instance.native_handle()), &value, sizeof(T), is_static_);
 }
@@ -832,6 +864,7 @@ private:
 
 template <typename T>
 Array<T> Object::as_array() const {
+    detail::require_array_object(context_, generation_, native_, class_name_);
     return Array<T>(context_, generation_, native_);
 }
 
@@ -844,11 +877,14 @@ public:
     GcHandle(const GcHandle&) = delete;
     GcHandle& operator=(const GcHandle&) = delete;
     GcHandle(GcHandle&& other) noexcept
-        : context_(std::move(other.context_)), handle_(other.handle_) { other.handle_ = 0; }
+        : context_(std::move(other.context_)), generation_(other.generation_), handle_(other.handle_) {
+        other.handle_ = 0;
+    }
     GcHandle& operator=(GcHandle&& other) noexcept {
         if (this != &other) {
             free();
             context_ = std::move(other.context_);
+            generation_ = other.generation_;
             handle_ = other.handle_;
             other.handle_ = 0;
         }
@@ -862,10 +898,11 @@ public:
 
 private:
     friend class Object;
-    GcHandle(std::shared_ptr<detail::RuntimeContext> context, std::uint32_t handle)
-        : context_(std::move(context)), handle_(handle) {}
+    GcHandle(std::shared_ptr<detail::RuntimeContext> context, std::uint64_t generation, std::uint32_t handle)
+        : context_(std::move(context)), generation_(generation), handle_(handle) {}
 
     std::shared_ptr<detail::RuntimeContext> context_;
+    std::uint64_t generation_{};
     std::uint32_t handle_{};
 };
 
@@ -876,10 +913,10 @@ inline void* pack_argument(String& value) noexcept { return value.native_handle(
 
 template <>
 inline Object convert_result<Object>(const BoundSignature& binding, void* raw) {
-    Object result(binding.context, binding.generation, raw,
+    /// 返回对象的具体类要到运行时才知道，这里只把返回类型名留作 fallback。
+    return Object(binding.context, binding.generation, raw,
                   static_cast<void*>(binding.descriptor.declaring_class),
-                  binding.descriptor.declaring_class_name);
-    return result;
+                  binding.descriptor.return_type.name);
 }
 
 template <>
@@ -917,8 +954,9 @@ public:
     [[nodiscard]] void* self() const noexcept { return self_; }
 
     /// 泛型调用目标：T=INB::Object 返回实例，T=INB::Class 返回声明类。
+    /// 不带模板实参时走上面的兼容重载，返回裸指针。
     template <typename T = Object>
-    [[nodiscard]] T target() const {
+    [[nodiscard]] T self() const {
         static_assert(std::is_same_v<T, Object> || std::is_same_v<T, Class>,
                       "self<T> supports only INB::Object or INB::Class");
         if constexpr (std::is_same_v<T, Object>) {
@@ -937,11 +975,6 @@ public:
                          record_->declaring_class_name, record_->image_name, record_->assembly_name);
         }
     }
-
-    /// 用户约定的单一入口：call.self<INB::Object>() / call.self<INB::Class>()。
-    /// 不带模板实参时走上面的兼容重载，返回裸指针。
-    template <typename T = Object>
-    [[nodiscard]] T self() const { return target<T>(); }
 
     [[nodiscard]] bool is_static() const noexcept { return record_ != nullptr && record_->is_static; }
 
@@ -1027,8 +1060,12 @@ private:
         try {
             auto user_args = std::tuple<Args...>{to_user_argument<Args>(record, args)...};
             return invoke_callback(callback, call, user_args, std::index_sequence_for<Args...>{});
+        } catch (const BridgeError&) {
+            /// 首次发现处已打印过同一条错误，这里只返回默认值，不重复报告。
+            if constexpr (!std::is_void_v<Return>) return Return{};
+            else return;
         } catch (...) {
-            /// 用户异常隔离在 native 边界：首次发现处已打印日志，这里只返回默认值。
+            /// 非 BridgeError 的意外异常没有其他报告点，在这里按节流计数上报。
             if (record->report_failure != nullptr) record->report_failure(const_cast<ReplacementRecordHeader*>(record));
             if constexpr (!std::is_void_v<Return>) return Return{};
             else return;

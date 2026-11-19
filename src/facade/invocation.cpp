@@ -18,12 +18,12 @@ namespace {
 /// 目标类型是否为值类型；缺少必要识别导出时明确失败，不猜类别。
 bool is_value_type(const Api& api, const Il2CppType* type, std::string_view path) {
     if (api.class_from_type == nullptr || api.class_is_valuetype == nullptr) {
-        fail(ErrorCode::missing_api, ErrorStage::bind, std::string(path),
+        report_and_throw(ErrorCode::missing_api, ErrorStage::bind, std::string(path),
              "type classification exports are unavailable");
     }
     Il2CppClass* klass = api.class_from_type(type);
     if (klass == nullptr) {
-        fail(ErrorCode::missing_api, ErrorStage::bind, std::string(path),
+        report_and_throw(ErrorCode::missing_api, ErrorStage::bind, std::string(path),
              "il2cpp_class_from_type returned null");
     }
     return api.class_is_valuetype(klass);
@@ -31,7 +31,7 @@ bool is_value_type(const Api& api, const Il2CppType* type, std::string_view path
 
 void require_not_generic(const Api& api, const Il2CppMethodInfo* method, std::string_view path) {
     if (api.method_is_generic == nullptr || api.method_is_inflated == nullptr) {
-        fail(ErrorCode::missing_api, ErrorStage::bind, std::string(path),
+        report_and_throw(ErrorCode::missing_api, ErrorStage::bind, std::string(path),
              "generic method identification exports are unavailable");
     }
     const bool generic = api.method_is_generic(method);
@@ -43,7 +43,7 @@ void require_not_generic(const Api& api, const Il2CppMethodInfo* method, std::st
     /// 开放泛型定义缺少具体类型，无法直接 runtime_invoke；
     /// 已具体化的 inflated 方法（如 Singleton<T> 针对具体类的 getter）携带完整 MethodInfo，可直接调用。
     if (generic && !inflated) {
-        fail(ErrorCode::unsupported_runtime, ErrorStage::bind, std::string(path),
+        report_and_throw(ErrorCode::unsupported_runtime, ErrorStage::bind, std::string(path),
              "open generic method definitions are not supported");
     }
 }
@@ -51,7 +51,7 @@ void require_not_generic(const Api& api, const Il2CppMethodInfo* method, std::st
 void require_assignability_exports(const Api& api, std::string_view path) {
     if (api.object_get_class == nullptr || api.class_is_assignable_from == nullptr ||
         api.class_from_type == nullptr) {
-        fail(ErrorCode::missing_api, ErrorStage::invoke, std::string(path),
+        report_and_throw(ErrorCode::missing_api, ErrorStage::invoke, std::string(path),
              "reference validation exports are unavailable");
     }
 }
@@ -69,7 +69,7 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
                            bool allow_byref) {
     const auto& view = require_scope_for(context, generation, path);
     if (candidates.size() != 1) {
-        fail(ErrorCode::ambiguous_match, ErrorStage::bind, std::move(path),
+        report_and_throw(ErrorCode::ambiguous_match, ErrorStage::bind, std::move(path),
              "the method must be unique before it can be bound");
     }
 
@@ -77,28 +77,28 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
     require_not_generic(view.api, static_cast<const Il2CppMethodInfo*>(descriptor.native), path);
 
     if (descriptor.parameter_types.size() != arguments.size()) {
-        fail(ErrorCode::invalid_argument, ErrorStage::bind, path,
+        report_and_throw(ErrorCode::invalid_argument, ErrorStage::bind, path,
              "the bound argument count does not match the method signature");
     }
 
     /// 返回类型：void 只允许 void；引用载体要求目标不是值类型；基础类型要求名称精确一致。
     if (descriptor.return_type.name == "System.Void") {
         if (return_is_reference || return_name != "System.Void") {
-            fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
+            report_and_throw(ErrorCode::type_mismatch, ErrorStage::bind, path,
                  "a void method can only be bound to a void result");
         }
     } else if (return_is_reference) {
         if (return_is_string) {
             if (descriptor.return_type.name != "System.String") {
-                fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
+                report_and_throw(ErrorCode::type_mismatch, ErrorStage::bind, path,
                      "the result is not a string");
             }
         } else if (is_value_type(view.api, static_cast<const Il2CppType*>(descriptor.return_type.native), path)) {
-            fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
+            report_and_throw(ErrorCode::type_mismatch, ErrorStage::bind, path,
                  "a value-type result cannot be bound to a reference carrier");
         }
     } else if (descriptor.return_type.name != return_name) {
-        fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
+        report_and_throw(ErrorCode::type_mismatch, ErrorStage::bind, path,
              "the result type does not match the bound C++ type");
     }
 
@@ -115,7 +115,7 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
             const auto element_name = name.substr(0, name.size() - 1);
             if (!allow_byref || !specification.reference_carrier || specification.string_carrier ||
                 element_name != specification.managed_name) {
-                fail(ErrorCode::unsupported_runtime, ErrorStage::bind, path,
+                report_and_throw(ErrorCode::unsupported_runtime, ErrorStage::bind, path,
                      "byref, ref and out parameters are not supported");
             }
             /// byref 传的是值地址，不参与托管对象引用校验。
@@ -127,15 +127,15 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
         if (specification.reference_carrier) {
             if (specification.string_carrier) {
                 if (name != "System.String") {
-                    fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
+                    report_and_throw(ErrorCode::type_mismatch, ErrorStage::bind, path,
                          "the parameter is not a string");
                 }
             } else if (is_value_type(view.api, static_cast<const Il2CppType*>(native), path)) {
-                fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
+                report_and_throw(ErrorCode::type_mismatch, ErrorStage::bind, path,
                      "a value-type parameter cannot be bound to a reference carrier");
             }
         } else if (name != specification.managed_name) {
-            fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
+            report_and_throw(ErrorCode::type_mismatch, ErrorStage::bind, path,
                  "a parameter type does not match the bound C++ type");
         }
     }
@@ -161,22 +161,22 @@ void* invoke_bound(const BoundSignature& binding,
 
     if (descriptor.is_static) {
         if (managed_instance != nullptr) {
-            fail(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
+            report_and_throw(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
                  "a static method does not take an instance");
         }
     } else {
         if (managed_instance == nullptr) {
-            fail(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
+            report_and_throw(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
                  "an instance method requires a managed object");
         }
         require_assignability_exports(view.api, binding.path);
         Il2CppClass* actual = view.api.object_get_class(managed_instance);
         if (actual == nullptr) {
-            fail(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
+            report_and_throw(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
                  "the instance has no managed class");
         }
         if (!view.api.class_is_assignable_from(static_cast<Il2CppClass*>(descriptor.declaring_class), actual)) {
-            fail(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
+            report_and_throw(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
                  "the instance is not compatible with the declaring class");
         }
     }
@@ -194,11 +194,11 @@ void* invoke_bound(const BoundSignature& binding,
         Il2CppClass* target_class = view.api.class_from_type(static_cast<const Il2CppType*>(target));
         Il2CppClass* actual = view.api.object_get_class(value);
         if (target_class == nullptr || actual == nullptr) {
-            fail(ErrorCode::missing_api, ErrorStage::invoke, binding.path,
+            report_and_throw(ErrorCode::missing_api, ErrorStage::invoke, binding.path,
                  "the argument class could not be identified");
         }
         if (!view.api.class_is_assignable_from(target_class, actual)) {
-            fail(ErrorCode::type_mismatch, ErrorStage::invoke, binding.path,
+            report_and_throw(ErrorCode::type_mismatch, ErrorStage::invoke, binding.path,
                  "a reference argument is not assignable to the parameter type");
         }
     }
@@ -206,28 +206,14 @@ void* invoke_bound(const BoundSignature& binding,
     Il2CppObject* exception = nullptr;
     Il2CppObject* result = view.api.runtime_invoke(static_cast<const Il2CppMethodInfo*>(descriptor.native), managed_instance, arguments.data(), &exception);
     if (exception != nullptr) {
-        fail(ErrorCode::managed_exception, ErrorStage::invoke, binding.path,
+        report_and_throw(ErrorCode::managed_exception, ErrorStage::invoke, binding.path,
              "the managed method threw an exception");
     }
     return result;
 }
 
 void unbox_result(const BoundSignature& binding, void* boxed, void* destination, std::size_t size) {
-    const auto& view = require_scope_for(binding.context, binding.generation, binding.path);
-    /// 能力缺失优先报告：此时无论结果是否为空都无法安全取值。
-    if (view.api.object_unbox == nullptr) {
-        fail(ErrorCode::missing_api, ErrorStage::invoke, binding.path,
-             "il2cpp_object_unbox is unavailable");
-    }
-    if (boxed == nullptr) {
-        fail(ErrorCode::invocation_failed, ErrorStage::invoke, binding.path,
-             "a value-type result was not produced");
-    }
-    void* data = view.api.object_unbox(static_cast<Il2CppObject*>(boxed));
-    if (data == nullptr) {
-        fail(ErrorCode::invocation_failed, ErrorStage::invoke, binding.path,
-             "the boxed result is empty");
-    }
+    void* data = unbox_data(binding.context, binding.generation, static_cast<Il2CppObject*>(boxed), binding.path);
     std::memcpy(destination, data, size);
 }
 

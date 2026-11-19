@@ -16,18 +16,7 @@
 namespace INB {
 namespace {
 
-template <typename T>
-void* opaque(T* p) { return const_cast<void*>(static_cast<const void*>(p)); }
-
-
 using detail::ReadyView;
-
-/// 只规范一次 `.dll` 后缀，其余部分按原样比较。
-std::string canonical_assembly_name(std::string_view name) {
-    constexpr std::string_view suffix = ".dll";
-    if (name.ends_with(suffix)) name.remove_suffix(suffix.size());
-    return std::string(name);
-}
 
 std::string join_path(std::initializer_list<std::string_view> parts) {
     std::string path;
@@ -39,10 +28,11 @@ std::string join_path(std::initializer_list<std::string_view> parts) {
     return path;
 }
 
-std::string describe_type(const detail::Api& api, const Il2CppType* type, std::string_view path) {
+/// 签名描述只服务于轨迹日志；日志关闭时该函数不参与编译。
+[[maybe_unused]] std::string describe_type(const detail::Api& api, const Il2CppType* type, std::string_view path) {
     auto name = detail::managed_name(api, type);
     if (!name) {
-        detail::fail(name.error().code, ErrorStage::lookup, std::string(path), name.error().message);
+        detail::report_and_throw(name.error().code, ErrorStage::lookup, std::string(path), name.error().message);
     }
     return std::move(name).take_value();
 }
@@ -52,23 +42,23 @@ std::string describe_type(const detail::Api& api, const Il2CppType* type, std::s
 Domain Il2Cpp::domain() {
     const auto& view = detail::require_access_scope();
     if (view.domain == nullptr) {
-        detail::fail(ErrorCode::internal_error, ErrorStage::scope, {}, "the active scope has no IL2CPP domain");
+        detail::report_and_throw(ErrorCode::internal_error, ErrorStage::scope, {}, "the active scope has no IL2CPP domain");
     }
     return Domain(view.context, view.generation, view.domain);
 }
 
 Assembly Domain::assembly(std::string_view name) const {
-    const auto requested = canonical_assembly_name(name);
+    const auto requested = std::string(name);
     const auto& view = detail::require_scope_for(context_, generation_, requested);
     if (view.api.domain_get_assemblies == nullptr || view.api.assembly_get_image == nullptr ||
         view.api.image_get_name == nullptr) {
-        detail::fail(ErrorCode::missing_api, ErrorStage::lookup, requested, "assembly enumeration exports are unavailable");
+        detail::report_and_throw(ErrorCode::missing_api, ErrorStage::lookup, requested, "assembly enumeration exports are unavailable");
     }
 
     std::size_t count = 0;
     const Il2CppAssembly** assemblies = view.api.domain_get_assemblies(static_cast<Il2CppDomain*>(native_), &count);
     if (assemblies == nullptr || count == 0) {
-        detail::fail(ErrorCode::not_found, ErrorStage::lookup, requested, "the IL2CPP domain has no loaded assemblies");
+        detail::report_and_throw(ErrorCode::not_found, ErrorStage::lookup, requested, "the IL2CPP domain has no loaded assemblies");
     }
 
     const Il2CppAssembly* matched = nullptr;
@@ -76,34 +66,34 @@ Assembly Domain::assembly(std::string_view name) const {
         const auto* image = view.api.assembly_get_image(assemblies[index]);
         const char* image_name = image == nullptr ? nullptr : view.api.image_get_name(image);
         if (image_name == nullptr) continue;
-        if (canonical_assembly_name(image_name) != requested) continue;
+        if (!detail::assembly_name_matches(image_name, requested)) continue;
         if (matched != nullptr) {
-            detail::fail(ErrorCode::ambiguous_match, ErrorStage::lookup, requested,
+            detail::report_and_throw(ErrorCode::ambiguous_match, ErrorStage::lookup, requested,
                  "more than one loaded assembly matches the requested name");
         }
         matched = assemblies[index];
     }
     if (matched == nullptr) {
-        detail::fail(ErrorCode::not_found, ErrorStage::lookup, requested, "no loaded assembly matches the requested name");
+        detail::report_and_throw(ErrorCode::not_found, ErrorStage::lookup, requested, "no loaded assembly matches the requested name");
     }
-    return Assembly(context_, generation_, opaque(matched), requested);
+    return Assembly(context_, generation_, detail::opaque(matched), requested);
 }
 
 Image Assembly::image() const {
     const auto& view = detail::require_scope_for(context_, generation_, name_);
     const auto* image = view.api.assembly_get_image(static_cast<Il2CppAssembly*>(native_));
     if (image == nullptr) {
-        detail::fail(ErrorCode::not_found, ErrorStage::lookup, name_, "the assembly has no loaded image");
+        detail::report_and_throw(ErrorCode::not_found, ErrorStage::lookup, name_, "the assembly has no loaded image");
     }
     const char* image_name = view.api.image_get_name(image);
-    return Image(context_, generation_, opaque(image), image_name == nullptr ? name_ : std::string(image_name), name_);
+    return Image(context_, generation_, detail::opaque(image), image_name == nullptr ? name_ : std::string(image_name), name_);
 }
 
 Class Image::klass(std::string_view full_name) const {
     const auto path = join_path({assembly_name_, name_, full_name});
     const auto& view = detail::require_scope_for(context_, generation_, path);
     if (view.api.class_from_name == nullptr) {
-        detail::fail(ErrorCode::missing_api, ErrorStage::lookup, path, "class lookup export is unavailable");
+        detail::report_and_throw(ErrorCode::missing_api, ErrorStage::lookup, path, "class lookup export is unavailable");
     }
 
     const auto separator = full_name.rfind('.');
@@ -116,7 +106,7 @@ Class Image::klass(std::string_view full_name) const {
 
     Il2CppClass* klass = view.api.class_from_name(static_cast<Il2CppImage*>(native_), name_space.c_str(), short_name.c_str());
     if (klass == nullptr) {
-        detail::fail(ErrorCode::not_found, ErrorStage::lookup, path,
+        detail::report_and_throw(ErrorCode::not_found, ErrorStage::lookup, path,
              "the selected image does not contain the requested class");
     }
     if constexpr (INB_LOG_ENABLED) {
@@ -124,7 +114,7 @@ Class Image::klass(std::string_view full_name) const {
             INB_LOGD("class %s -> %p", path.c_str(), static_cast<void*>(klass));
         }
     }
-    return Class(context_, generation_, opaque(klass), std::string(full_name), name_, assembly_name_);
+    return Class(context_, generation_, detail::opaque(klass), std::string(full_name), name_, assembly_name_);
 }
 
 Class::Class(std::shared_ptr<detail::RuntimeContext> context,
@@ -152,7 +142,7 @@ Method Class::select(std::string_view name, const std::optional<std::size_t>& pa
     if (view.api.class_get_methods == nullptr || view.api.method_get_name == nullptr ||
         view.api.method_get_param_count == nullptr || view.api.method_get_param == nullptr ||
         view.api.method_get_return_type == nullptr || view.api.method_get_flags == nullptr) {
-        detail::fail(ErrorCode::missing_api, ErrorStage::lookup, path, "method enumeration exports are unavailable");
+        detail::report_and_throw(ErrorCode::missing_api, ErrorStage::lookup, path, "method enumeration exports are unavailable");
     }
 
     std::vector<MethodDescriptor> candidates;
@@ -167,20 +157,8 @@ Method Class::select(std::string_view name, const std::optional<std::size_t>& pa
             const std::uint32_t native_parameter_count = view.api.method_get_param_count(method);
             if (parameter_count.has_value() && parameter_count.value() != native_parameter_count) continue;
 
-            MethodDescriptor descriptor;
-            descriptor.native = const_cast<void*>(static_cast<const void*>(method));
-            descriptor.declaring_class = klass;
+            MethodDescriptor descriptor = detail::descriptor_for(view, method, klass, path);
             descriptor.declaring_class_name = full_name_;
-            descriptor.name = method_name;
-            descriptor.is_static = (view.api.method_get_flags(method, nullptr) & detail::kMethodAttributeStatic) != 0U;
-            descriptor.return_type.native = const_cast<void*>(static_cast<const void*>(view.api.method_get_return_type(method)));
-            descriptor.return_type.name = describe_type(view.api, static_cast<const Il2CppType*>(descriptor.return_type.native), path);
-            descriptor.parameter_types.reserve(native_parameter_count);
-            for (std::uint32_t index = 0; index < native_parameter_count; ++index) {
-                const auto* parameter_type = view.api.method_get_param(method, index);
-                descriptor.parameter_types.push_back(
-                        TypeDescriptor{const_cast<void*>(static_cast<const void*>(parameter_type)), describe_type(view.api, parameter_type, path)});
-            }
             candidates.push_back(std::move(descriptor));
         }
     };
@@ -211,7 +189,7 @@ Method Class::select(std::string_view name, const std::optional<std::size_t>& pa
                 INB_LOGD("method %s available: %s", path.c_str(), signature.c_str());
             }
         }
-        detail::fail(ErrorCode::not_found, ErrorStage::lookup, path,
+        detail::report_and_throw(ErrorCode::not_found, ErrorStage::lookup, path,
              "no method matches the requested name and parameter count");
     }
     if constexpr (INB_LOG_ENABLED) {
@@ -276,7 +254,7 @@ Method Method::overload(std::span<const std::string_view> parameter_types) const
     }
 
     if (narrowed.empty()) {
-        detail::fail(ErrorCode::not_found, ErrorStage::lookup, path, "no overload matches the requested parameter types");
+        detail::report_and_throw(ErrorCode::not_found, ErrorStage::lookup, path, "no overload matches the requested parameter types");
     }
     return Method(context_, generation_, declaring_class_, declaring_class_name_, name_, std::move(narrowed),
                   bound_instance_, image_name_, assembly_name_);

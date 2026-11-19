@@ -64,7 +64,7 @@ ManagedRecord* find_record(void* target) {
 Result<void*> entry_of(const MethodDescriptor& descriptor, const std::string& path) {
     auto entry = resolve_method_entry(static_cast<const Il2CppMethodInfo*>(descriptor.native));
     if (!entry) {
-        fail(entry.error().code, ErrorStage::replacement, path, entry.error().message);
+        report_and_throw(entry.error().code, ErrorStage::replacement, path, entry.error().message);
     }
     return entry;
 }
@@ -77,13 +77,13 @@ void perform_revert(ManagedRecord* record) {
     auto reverted = provider.revert(record->target);
     if (!reverted) {
         record->state.store(static_cast<int>(ReplacementState::active));
-        fail(reverted.error().code, ErrorStage::replacement, record->path, reverted.error().message);
+        report_and_throw(reverted.error().code, ErrorStage::replacement, record->path, reverted.error().message);
     }
 
     /// flush 必须在锁外调用：它可能与正在退出的回调同步。
     if (!provider.flush(record->target)) {
         record->state.store(static_cast<int>(ReplacementState::draining));
-        fail(ErrorCode::restore_pending, ErrorStage::restore, record->path,
+        report_and_throw(ErrorCode::restore_pending, ErrorStage::restore, record->path,
              "the replacement is still draining; retry revert after in-flight calls return");
     }
 
@@ -139,22 +139,22 @@ void install_replacement(const ReplacementRequest& request) {
     /// 后端不可用时先报 missing_api：此时解析入口或 bootstrap 都没有意义。
     const auto& provider = managed_gum_provider();
     if (!provider.available) {
-        fail(ErrorCode::missing_api, ErrorStage::replacement, signature.path,
+        report_and_throw(ErrorCode::missing_api, ErrorStage::replacement, signature.path,
              "managed replacement requires the Frida Gum backend");
     }
 
     /// profile 是安装的前置关口：没有证据的 family 不进入 Gum，也不解析入口。
     auto profile = resolve_abi_profile(view);
     if (!profile) {
-        fail(profile.error().code, ErrorStage::replacement, signature.path, profile.error().message);
+        report_and_throw(profile.error().code, ErrorStage::replacement, signature.path, profile.error().message);
     }
     if (profile.value().support == ProfileSupport::rejected) {
-        fail(ErrorCode::unsupported_runtime, ErrorStage::replacement, signature.path,
+        report_and_throw(ErrorCode::unsupported_runtime, ErrorStage::replacement, signature.path,
              "the ABI profile '" + profile.value().family + "' has no verified native shape");
     }
     /// 只有偏移 0 有生成代码证据；其他偏移不猜。
     if (profile.value().entry_offset != 0) {
-        fail(ErrorCode::unsupported_runtime, ErrorStage::replacement, signature.path,
+        report_and_throw(ErrorCode::unsupported_runtime, ErrorStage::replacement, signature.path,
              "the ABI profile entry offset is not verified");
     }
 
@@ -162,7 +162,7 @@ void install_replacement(const ReplacementRequest& request) {
     void* target = entry.value();
 
     if (legacy_hook_active(target)) {
-        fail(ErrorCode::owner_conflict, ErrorStage::replacement, signature.path,
+        report_and_throw(ErrorCode::owner_conflict, ErrorStage::replacement, signature.path,
              "the target is owned by a legacy Hook");
     }
 
@@ -187,12 +187,12 @@ void install_replacement(const ReplacementRequest& request) {
         auto& managed = registry();
         std::lock_guard lock(managed.mutex);
         if (managed.active.size() >= kManagedSlotLimit) {
-            fail(ErrorCode::resource_exhausted, ErrorStage::replacement, signature.path,
+            report_and_throw(ErrorCode::resource_exhausted, ErrorStage::replacement, signature.path,
                  "the managed replacement budget is exhausted");
         }
         auto inserted = managed.active.emplace(target, std::move(record));
         if (!inserted.second) {
-            fail(ErrorCode::owner_conflict, ErrorStage::replacement, signature.path,
+            report_and_throw(ErrorCode::owner_conflict, ErrorStage::replacement, signature.path,
                  "the target already has a managed replacement");
         }
         stored = inserted.first->second.get();
@@ -204,7 +204,7 @@ void install_replacement(const ReplacementRequest& request) {
         auto& managed = registry();
         std::lock_guard lock(managed.mutex);
         managed.active.erase(target);
-        fail(installed.error().code, ErrorStage::replacement, signature.path, installed.error().message);
+        report_and_throw(installed.error().code, ErrorStage::replacement, signature.path, installed.error().message);
     }
 
     stored->header.original = installed.value();
@@ -225,7 +225,7 @@ void revert_replacement(const std::shared_ptr<RuntimeContext>& context,
                         const std::string& path) {
     (void) require_scope_for(context, generation, path);
     if (candidates.size() != 1) {
-        fail(ErrorCode::ambiguous_match, ErrorStage::replacement, path,
+        report_and_throw(ErrorCode::ambiguous_match, ErrorStage::replacement, path,
              "the method must be unique before it can be restored");
     }
 
@@ -240,7 +240,7 @@ void revert_replacement(const std::shared_ptr<RuntimeContext>& context,
     }
     if (record == nullptr) {
         if (legacy_hook_active(target)) {
-            fail(ErrorCode::owner_conflict, ErrorStage::replacement, path,
+            report_and_throw(ErrorCode::owner_conflict, ErrorStage::replacement, path,
                  "the target is owned by a legacy Hook");
         }
         return;  /// 没有 managed 项：重复恢复成功
@@ -248,7 +248,7 @@ void revert_replacement(const std::shared_ptr<RuntimeContext>& context,
 
     if (static_cast<ReplacementState>(record->state.load()) == ReplacementState::installing) {
         record->restore_requested.store(true, std::memory_order_release);
-        fail(ErrorCode::restore_pending, ErrorStage::restore, path,
+        report_and_throw(ErrorCode::restore_pending, ErrorStage::restore, path,
              "the replacement is still installing; restore was requested");
     }
 
@@ -261,7 +261,7 @@ ReplacementState replacement_state_of(const std::shared_ptr<RuntimeContext>& con
                                       const std::string& path) {
     (void) require_scope_for(context, generation, path);
     if (candidates.size() != 1) {
-        fail(ErrorCode::ambiguous_match, ErrorStage::replacement, path,
+        report_and_throw(ErrorCode::ambiguous_match, ErrorStage::replacement, path,
              "the method must be unique before its state can be read");
     }
 

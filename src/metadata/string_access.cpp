@@ -26,31 +26,6 @@ void append_utf8(std::string& output, std::uint32_t code_point) {
     }
 }
 
-std::string to_utf8(std::u16string_view input) {
-    std::string output;
-    output.reserve(input.size());
-    for (std::size_t index = 0; index < input.size(); ++index) {
-        std::uint32_t code_point = input[index];
-        if (code_point >= 0xD800 && code_point <= 0xDBFF) {
-            if (index + 1 < input.size()) {
-                const std::uint32_t low = input[index + 1];
-                if (low >= 0xDC00 && low <= 0xDFFF) {
-                    code_point = 0x10000 + ((code_point - 0xD800) << 10) + (low - 0xDC00);
-                    ++index;
-                } else {
-                    code_point = kReplacement;
-                }
-            } else {
-                code_point = kReplacement;
-            }
-        } else if (code_point >= 0xDC00 && code_point <= 0xDFFF) {
-            code_point = kReplacement;
-        }
-        append_utf8(output, code_point);
-    }
-    return output;
-}
-
 std::u16string to_utf16(std::string_view input) {
     std::u16string output;
     output.reserve(input.size());
@@ -106,6 +81,35 @@ std::u16string to_utf16(std::string_view input) {
 
 } /// namespace
 
+namespace INB::detail {
+
+std::string utf16_to_utf8(std::u16string_view input) {
+    std::string output;
+    output.reserve(input.size());
+    for (std::size_t index = 0; index < input.size(); ++index) {
+        std::uint32_t code_point = input[index];
+        if (code_point >= 0xD800 && code_point <= 0xDBFF) {
+            if (index + 1 < input.size()) {
+                const std::uint32_t low = input[index + 1];
+                if (low >= 0xDC00 && low <= 0xDFFF) {
+                    code_point = 0x10000 + ((code_point - 0xD800) << 10) + (low - 0xDC00);
+                    ++index;
+                } else {
+                    code_point = kReplacement;
+                }
+            } else {
+                code_point = kReplacement;
+            }
+        } else if (code_point >= 0xDC00 && code_point <= 0xDFFF) {
+            code_point = kReplacement;
+        }
+        append_utf8(output, code_point);
+    }
+    return output;
+}
+
+} /// namespace INB::detail
+
 namespace INB {
 
 Result<std::u16string> Runtime::string_to_utf16(Il2CppString* value) const {
@@ -140,7 +144,7 @@ Result<std::u16string> Runtime::string_to_utf16(Il2CppString* value) const {
 Result<std::string> Runtime::string_to_utf8(Il2CppString* value) const {
     auto utf16 = string_to_utf16(value);
     if (!utf16) return Result<std::string>::failure(utf16.error());
-    return Result<std::string>::success(to_utf8(utf16.value()));
+    return Result<std::string>::success(detail::utf16_to_utf8(utf16.value()));
 }
 
 Result<Il2CppString*> Runtime::string_from_utf16(std::u16string_view value) const {

@@ -120,7 +120,6 @@ if (IL2CPP_NATIVE_BRIDGE_INSTALL)
             include/il2cpp_native_bridge/detail_types.hpp
             include/il2cpp_native_bridge/result.hpp
             include/il2cpp_native_bridge/runtime_state.hpp
-            include/il2cpp_native_bridge/thread_attachment.hpp
             include/il2cpp_native_bridge/unity_types.hpp
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/il2cpp_native_bridge)
 

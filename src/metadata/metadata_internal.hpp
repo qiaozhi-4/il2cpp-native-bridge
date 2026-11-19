@@ -28,6 +28,9 @@ Result<void> validate_field_handle(const FieldHandle& field);
 /// 读取托管类型名，剥离 "class "/"valuetype " 前缀并规范化 void。
 Result<std::string> managed_name(const Api& api, const Il2CppType* type);
 
+/// 托管字符串的 UTF-16 内容转 UTF-8；非法代理对替换为 U+FFFD。
+std::string utf16_to_utf8(std::u16string_view value);
+
 /// 判断镜像名与请求的程序集名是否指同一程序集，容忍 ".dll" 后缀差异。
 bool assembly_name_matches(std::string_view image_name, std::string_view requested_name);
 

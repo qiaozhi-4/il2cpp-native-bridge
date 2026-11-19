@@ -65,8 +65,27 @@ const ReadyView& require_access_scope();
 /// 当前线程最内层作用域，没有时返回空。
 AccessScope* current_access_scope() noexcept;
 
-/// 统一的失败出口：门面在第一个失败环节抛出结构化错误。
-[[noreturn]] void fail(ErrorCode code, ErrorStage stage, std::string path, std::string message);
+/// 把任意指针还原为不透明句柄；公开类型只持有 void*，原生布局留在库内。
+template <typename T>
+inline void* opaque(T* pointer) {
+    return const_cast<void*>(static_cast<const void*>(pointer));
+}
+
+/**
+ * 从方法元数据生成描述符；成员类型名不可用时报错，避免参数列表被静默截短。
+ *
+ * @param path 失败时的定位路径，通常是「类::方法」或类名。
+ */
+MethodDescriptor descriptor_for(const ReadyView& view,
+                                const Il2CppMethodInfo* method,
+                                Il2CppClass* declaring_class,
+                                std::string_view path);
+
+/// 拆箱取数据指针；导出缺失、对象为空或不可拆箱时在首次发现处报错。
+void* unbox_data(const std::shared_ptr<RuntimeContext>& context,
+                 std::uint64_t generation,
+                 Il2CppObject* boxed,
+                 std::string_view path);
 
 /// 校验句柄属于当前作用域与同一 runtime 代际，返回本次可用视图。
 const ReadyView& require_scope_for(const std::shared_ptr<RuntimeContext>& context,
