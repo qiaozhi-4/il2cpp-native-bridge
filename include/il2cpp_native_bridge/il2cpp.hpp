@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bridge.hpp"
+#include "detail_types.hpp"
 #include "result.hpp"
 #include "runtime_state.hpp"
 
@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <exception>
 #include <functional>
 #include <memory>
@@ -20,13 +21,6 @@
 #include <utility>
 #include <vector>
 
-struct Il2CppAssembly;
-struct Il2CppClass;
-struct Il2CppDomain;
-struct Il2CppImage;
-struct Il2CppMethodInfo;
-struct Il2CppObject;
-struct Il2CppType;
 
 namespace INB {
 
@@ -35,11 +29,21 @@ struct RuntimeContext;
 }
 
 class Assembly;
+template <typename T>
+class Array;
 class Class;
 class Domain;
+class Field;
+class GcHandle;
 class Il2Cpp;
 class Image;
 class Method;
+class Object;
+class String;
+
+/// 公开包装类型的托管名映射；具体类别由 detail::ArgumentSpec 区分。
+template <> struct ManagedTypeName<Object> { static constexpr std::string_view value = "System.Object"; };
+template <> struct ManagedTypeName<String> { static constexpr std::string_view value = "System.String"; };
 
 /// 托管方法替换的状态投影。
 enum class ReplacementState {
@@ -116,10 +120,20 @@ struct ReplacementRecordHeader {
     void (*report_failure)(void* record){};
     void* original{};
     bool is_static{};
+    /// 构造 self<T>() 所需的上下文与声明类信息，由安装时写入。
+    std::shared_ptr<RuntimeContext> context;
+    std::uint64_t generation{};
+    void* declaring_class{};
+    std::string declaring_class_name;
+    std::string image_name;
+    std::string assembly_name;
 };
 
 /// 当前线程当前 replacement 的记录；不在回调内时为空。由 provider 实现。
 const ReplacementRecordHeader* current_replacement_record();
+
+/// 首次发现失败时打印 error 日志并抛出；所有门面抛出点统一走这里。
+[[noreturn]] void report_and_throw(ErrorCode code, ErrorStage stage, std::string path, std::string message);
 
 /**
  * 回调内的运行时访问作用域：让用户在 replacement 回调里也能使用 `Il2Cpp::domain()` 等 API。
@@ -203,6 +217,9 @@ public:
 
     /// 进入当前 perform 作用域的域对象；不在作用域内或运行时未就绪时抛 BridgeError。
     static Domain domain();
+
+    /// 在当前作用域内按完整托管名解析类；同名歧义时在首次发现处报错。
+    static Class klass(std::string_view full_name);
 };
 
 /**
@@ -211,7 +228,7 @@ public:
  * 类别（值/引用）由绑定期按导出能力判定，不在此缓存，避免把不可用能力当成已知事实。
  */
 struct TypeDescriptor {
-    const Il2CppType* native{};
+    void* native{};
     std::string name;
 };
 
@@ -221,8 +238,8 @@ struct TypeDescriptor {
  * 不拥有 runtime context，可在作用域外保存和读取名称/签名；native 指针的有效期由 runtime 卸载决定。
  */
 struct MethodDescriptor {
-    const Il2CppMethodInfo* native{};
-    Il2CppClass* declaring_class{};
+    void* native{};
+    void* declaring_class{};
     std::string declaring_class_name;
     std::string name;
     TypeDescriptor return_type;
@@ -248,6 +265,13 @@ struct ReplacementRequest {
     void* callback{};
     void* static_entry{};
     void* instance_entry{};
+    /// self<T>() 构造包装类型所需的声明类身份。
+    std::shared_ptr<RuntimeContext> context;
+    std::uint64_t generation{};
+    void* declaring_class{};
+    std::string declaring_class_name;
+    std::string image_name;
+    std::string assembly_name;
 };
 
 /// 安装替换；签名不支持、名额耗尽或地址被占用时抛 BridgeError。
@@ -259,6 +283,19 @@ struct ArgumentSpec {
     bool string_carrier{};
     std::string_view managed_name;
 };
+
+/// 类型类别判定：旧裸指针与新包装类型都算引用载体。
+template <typename T>
+struct is_reference_carrier : std::bool_constant<std::is_pointer_v<std::remove_cvref_t<T>>> {};
+template <>
+struct is_reference_carrier<Object> : std::true_type {};
+template <>
+struct is_reference_carrier<String> : std::true_type {};
+
+template <typename T>
+struct is_string_carrier : std::false_type {};
+template <>
+struct is_string_carrier<String> : std::true_type {};
 
 /// 校验唯一候选的静态签名并建立绑定；超出支持范围时抛 BridgeError。
 BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
@@ -272,17 +309,66 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
                            bool allow_byref = false);
 
 /// 核对实例与实参后调用，返回原始托管结果；托管异常抛 managed_exception。
-Il2CppObject* invoke_bound(const BoundSignature& binding, Il2CppObject* instance, std::span<void*> arguments);
+void* invoke_bound(const BoundSignature& binding, void* instance, std::span<void*> arguments);
 
 /// 基础类型返回值从装箱对象复制出来；空结果抛 invocation_failed。
-void unbox_result(const BoundSignature& binding, Il2CppObject* boxed, void* destination, std::size_t size);
+void unbox_result(const BoundSignature& binding, void* boxed, void* destination, std::size_t size);
+
+/// 字段读写：由包装类型调用，错误在首次发现处报告。
+void field_read(const std::shared_ptr<RuntimeContext>& context,
+                std::uint64_t generation,
+                void* field,
+                void* declaring_class,
+                void* instance,
+                void* destination,
+                std::size_t size,
+                bool is_static);
+void field_write(const std::shared_ptr<RuntimeContext>& context,
+                 std::uint64_t generation,
+                 void* field,
+                 void* declaring_class,
+                 void* instance,
+                 const void* source,
+                 std::size_t size,
+                 bool is_static);
+void field_write_boxed(const std::shared_ptr<RuntimeContext>& context,
+                       std::uint64_t generation,
+                       void* field,
+                       void* declaring_class,
+                       void* instance,
+                       void* boxed,
+                       bool is_static);
+
+/// GCHandle：由 Object::ref/weak_ref 创建，错误在首次发现处报告。
+std::uint32_t gchandle_new(const std::shared_ptr<RuntimeContext>& context,
+                           std::uint64_t generation,
+                           void* target,
+                           bool pinned,
+                           bool weak);
+void gchandle_free(const std::shared_ptr<RuntimeContext>& context, std::uint32_t handle);
+void* gchandle_target(const std::shared_ptr<RuntimeContext>& context, std::uint32_t handle);
+
+/// 字符串与数组访问。
+std::string string_content(const std::shared_ptr<RuntimeContext>& context,
+                           std::uint64_t generation,
+                           void* value);
+std::size_t array_length(const std::shared_ptr<RuntimeContext>& context,
+                         std::uint64_t generation,
+                         void* array);
+void* array_element(const std::shared_ptr<RuntimeContext>& context,
+                    std::uint64_t generation,
+                    void* array,
+                    std::size_t index);
+void* unbox_value(const std::shared_ptr<RuntimeContext>& context,
+                  std::uint64_t generation,
+                  void* boxed);
 
 /**
  * 实参打包：引用类型传对象指针值，基础类型传值地址。
- *
- * 依据 Unity 6000.3.10f1 生成的 `RuntimeInvoker_*`：引用参数是 `(T*)args[i]`，
- * 值参数是 `*(T*)args[i]`（见 build/bridge-perform-unity/g1-invoker-evidence.md）。
  */
+void* pack_argument(Object& value) noexcept;
+void* pack_argument(String& value) noexcept;
+
 template <typename Arg>
 void* pack_argument(Arg& value) {
     if constexpr (std::is_pointer_v<std::remove_cvref_t<Arg>>) {
@@ -298,7 +384,7 @@ std::array<void*, sizeof...(Indices)> pack_arguments(Tuple& values, std::index_s
 }
 
 template <typename Return>
-Return convert_result(const BoundSignature& binding, Il2CppObject* raw) {
+Return convert_result(const BoundSignature& binding, void* raw) {
     if constexpr (std::is_void_v<Return>) {
         (void) binding;
         (void) raw;
@@ -328,12 +414,12 @@ public:
 
 private:
     friend class Il2Cpp;
-    Domain(std::shared_ptr<detail::RuntimeContext> context, std::uint64_t generation, Il2CppDomain* native)
+    Domain(std::shared_ptr<detail::RuntimeContext> context, std::uint64_t generation, void* native)
         : context_(std::move(context)), generation_(generation), native_(native) {}
 
     std::shared_ptr<detail::RuntimeContext> context_;
     std::uint64_t generation_{};
-    Il2CppDomain* native_{};
+    void* native_{};
 };
 
 class Assembly {
@@ -346,13 +432,13 @@ private:
     friend class Domain;
     Assembly(std::shared_ptr<detail::RuntimeContext> context,
              std::uint64_t generation,
-             const Il2CppAssembly* native,
+             void* native,
              std::string name)
         : context_(std::move(context)), generation_(generation), native_(native), name_(std::move(name)) {}
 
     std::shared_ptr<detail::RuntimeContext> context_;
     std::uint64_t generation_{};
-    const Il2CppAssembly* native_{};
+    void* native_{};
     std::string name_;
 };
 
@@ -364,9 +450,10 @@ public:
 
 private:
     friend class Assembly;
+    friend class Class;
     Image(std::shared_ptr<detail::RuntimeContext> context,
           std::uint64_t generation,
-          const Il2CppImage* native,
+          void* native,
           std::string name,
           std::string assembly_name)
         : context_(std::move(context)),
@@ -377,7 +464,7 @@ private:
 
     std::shared_ptr<detail::RuntimeContext> context_;
     std::uint64_t generation_{};
-    const Il2CppImage* native_{};
+    void* native_{};
     std::string name_;
     std::string assembly_name_;
 };
@@ -389,12 +476,26 @@ public:
     /// 数量是托管参数个数，不计 this 与隐藏 MethodInfo。
     [[nodiscard]] Method method(std::string_view name, std::size_t managed_parameter_count) const;
     [[nodiscard]] std::string_view full_name() const noexcept { return full_name_; }
+    /// 与 JS 库对应的成员命名。
+    [[nodiscard]] std::string_view fullName() const noexcept { return full_name_; }
+    [[nodiscard]] std::string_view assemblyName() const noexcept { return assembly_name_; }
+    [[nodiscard]] std::string_view imageName() const noexcept { return image_name_; }
+    [[nodiscard]] Image image() const;
+    [[nodiscard]] std::vector<Field> fields() const;
+    [[nodiscard]] std::vector<Method> methods() const;
+    [[nodiscard]] Field field(std::string_view name) const;
+    [[nodiscard]] Object newObject() const;
+    [[nodiscard]] std::string toString() const;
 
 private:
     friend class Image;
+    friend class Object;
+    friend class Il2Cpp;
+    template <typename, typename...>
+    friend class ReplacementCall;
     Class(std::shared_ptr<detail::RuntimeContext> context,
           std::uint64_t generation,
-          Il2CppClass* native,
+          void* native,
           std::string full_name,
           std::string image_name,
           std::string assembly_name);
@@ -403,7 +504,7 @@ private:
 
     std::shared_ptr<detail::RuntimeContext> context_;
     std::uint64_t generation_{};
-    Il2CppClass* native_{};
+    void* native_{};
     std::string full_name_;
     std::string image_name_;
     std::string assembly_name_;
@@ -426,7 +527,13 @@ public:
 
     /// 在指定实例上调用；实例须与声明类兼容，方法须为非静态。
     template <typename Return, typename... Args>
-    Return invoke_on(Il2CppObject* self, Args... args) const;
+    Return invoke_on(void* self, Args... args) const;
+
+    /// 在托管对象包装上调用实例方法。
+    template <typename Return, typename... Args>
+    Return invoke_on(const Object& self, Args... args) const;
+
+    [[nodiscard]] std::string toString() const;
 
     /// 安装托管方法替换；由库强拥有，不返回需要保活的句柄。
     template <typename Return, typename... Args>
@@ -440,20 +547,146 @@ public:
 
 private:
     friend class Class;
+    friend class Object;
     Method(std::shared_ptr<detail::RuntimeContext> context,
            std::uint64_t generation,
-           Il2CppClass* declaring_class,
+           void* declaring_class,
            std::string declaring_class_name,
            std::string name,
-           std::vector<MethodDescriptor> candidates);
+           std::vector<MethodDescriptor> candidates,
+           void* bound_instance = nullptr,
+           std::string image_name = {},
+           std::string assembly_name = {});
 
     std::shared_ptr<detail::RuntimeContext> context_;
     std::uint64_t generation_{};
-    Il2CppClass* declaring_class_{};
+    void* declaring_class_{};
     std::string declaring_class_name_;
     std::string name_;
     std::vector<MethodDescriptor> candidates_;
+    void* bound_instance_{};
+    std::string image_name_;
+    std::string assembly_name_;
 };
+
+/**
+ * 托管字段包装；由 Class（静态字段）或 Object（实例字段）创建。
+ *
+ * 实例字段绑定了所属对象，get/set 不再需要额外传入实例。
+ */
+class Field {
+public:
+    template <typename T>
+    [[nodiscard]] T get() const {
+        T value{};
+        detail::field_read(context_, generation_, native_, declaring_class_, instance_, &value, sizeof(T), is_static_);
+        return value;
+    }
+
+    template <typename T>
+    void set(const T& value) const {
+        detail::field_write(context_, generation_, native_, declaring_class_, instance_, &value, sizeof(T), is_static_);
+    }
+
+    template <typename T>
+    [[nodiscard]] T get(const Object& instance) const;
+
+    template <typename T>
+    void set(const T& value, const Object& instance) const;
+
+    /// 将装箱后的托管值写入字段；用于 Obscured 等值类型字段。
+    void set_boxed(Object value) const;
+
+    /// 读取引用类型字段；空值返回默认构造的 Object。
+    [[nodiscard]] Object getObject() const;
+
+    [[nodiscard]] std::string_view name() const noexcept { return name_; }
+    [[nodiscard]] std::string_view value_type_name() const noexcept { return value_type_; }
+    [[nodiscard]] bool isStatic() const noexcept { return is_static_; }
+    [[nodiscard]] std::string toString() const;
+
+private:
+    friend class Class;
+    friend class Object;
+    Field(std::shared_ptr<detail::RuntimeContext> context,
+          std::uint64_t generation,
+          void* native,
+          void* declaring_class,
+          void* instance,
+          std::string name,
+          std::string value_type,
+          bool is_static);
+
+    std::shared_ptr<detail::RuntimeContext> context_;
+    std::uint64_t generation_{};
+    void* native_{};
+    void* declaring_class_{};
+    void* instance_{};
+    std::string name_;
+    std::string value_type_;
+    bool is_static_{};
+};
+
+/**
+ * 托管对象实例包装；非拥有，不阻止 GC 回收，需要保活时使用 ref()。
+ */
+class Object {
+public:
+    Object() = default;
+    [[nodiscard]] bool isNull() const noexcept { return native_ == nullptr; }
+    [[nodiscard]] Class klass() const;
+    [[nodiscard]] Field field(std::string_view name) const;
+    [[nodiscard]] Method method(std::string_view name) const;
+    [[nodiscard]] Method method(std::string_view name, std::size_t managed_parameter_count) const;
+    [[nodiscard]] String as_string() const;
+    template <typename T>
+    [[nodiscard]] Array<T> as_array() const;
+    [[nodiscard]] GcHandle ref(bool pin) const;
+    [[nodiscard]] GcHandle weak_ref(bool pin) const;
+    [[nodiscard]] std::string toString() const;
+    [[nodiscard]] void* native_handle() const noexcept { return native_; }
+
+private:
+    friend class Class;
+    friend class Field;
+    friend class Method;
+    friend class String;
+    friend class GcHandle;
+    template <typename, typename...>
+    friend class ReplacementCall;
+    template <typename, typename...>
+    friend struct detail::ReplacementEntry;
+    template <typename>
+    friend class Array;
+    template <typename R>
+    friend R detail::convert_result(const detail::BoundSignature&, void*);
+
+    Object(std::shared_ptr<detail::RuntimeContext> context,
+           std::uint64_t generation,
+           void* native,
+           void* declaring_class,
+           std::string class_name);
+
+    std::shared_ptr<detail::RuntimeContext> context_;
+    std::uint64_t generation_{};
+    void* native_{};
+    void* declaring_class_{};
+    std::string class_name_;
+};
+
+template <typename T>
+T Field::get(const Object& instance) const {
+    T value{};
+    detail::field_read(context_, generation_, native_, declaring_class_,
+                       static_cast<void*>(instance.native_handle()), &value, sizeof(T), is_static_);
+    return value;
+}
+
+template <typename T>
+void Field::set(const T& value, const Object& instance) const {
+    detail::field_write(context_, generation_, native_, declaring_class_,
+                        static_cast<void*>(instance.native_handle()), &value, sizeof(T), is_static_);
+}
 
 /**
  * 已校验静态签名的可复用绑定。
@@ -465,10 +698,10 @@ class BoundMethod {
 public:
     Return invoke(Args... args) const { return invoke_on(nullptr, std::forward<Args>(args)...); }
 
-    Return invoke_on(Il2CppObject* self, Args... args) const {
+    Return invoke_on(void* self, Args... args) const {
         auto values = std::tuple<std::remove_cvref_t<Args>...>(std::forward<Args>(args)...);
         auto pointers = detail::pack_arguments(values, std::index_sequence_for<Args...>{});
-        Il2CppObject* raw = detail::invoke_bound(
+        void* raw = detail::invoke_bound(
                 binding_, self, std::span<void*>(pointers.data(), pointers.size()));
         return detail::convert_result<Return>(binding_, raw);
     }
@@ -489,26 +722,183 @@ BoundMethod<Return, Args...> Method::typed() const {
 
     using CleanReturn = std::remove_cvref_t<Return>;
     const std::array<detail::ArgumentSpec, sizeof...(Args)> specifications{
-            detail::ArgumentSpec{std::is_pointer_v<std::remove_cvref_t<Args>>,
-                                 std::is_same_v<std::remove_cvref_t<Args>, Il2CppString*>,
+            detail::ArgumentSpec{detail::is_reference_carrier<Args>::value,
+                                 detail::is_string_carrier<Args>::value,
                                  managed_type_name<Args>}...};
     auto binding = detail::bind_method(context_, generation_, candidates_,
                                        declaring_class_name_ + "::" + name_,
-                                       std::is_pointer_v<CleanReturn>,
-                                       std::is_same_v<CleanReturn, Il2CppString*>,
+                                       detail::is_reference_carrier<CleanReturn>::value,
+                                       detail::is_string_carrier<CleanReturn>::value,
                                        managed_type_name<Return>, specifications);
     return BoundMethod<Return, Args...>(std::move(binding));
 }
 
 template <typename Return, typename... Args>
 Return Method::invoke(Args... args) const {
-    return typed<Return, Args...>().invoke(std::forward<Args>(args)...);
+    return typed<Return, Args...>().invoke_on(bound_instance_, std::forward<Args>(args)...);
 }
 
 template <typename Return, typename... Args>
-Return Method::invoke_on(Il2CppObject* self, Args... args) const {
+Return Method::invoke_on(void* self, Args... args) const {
     return typed<Return, Args...>().invoke_on(self, std::forward<Args>(args)...);
 }
+
+template <typename Return, typename... Args>
+Return Method::invoke_on(const Object& self, Args... args) const {
+    return typed<Return, Args...>().invoke_on(
+            static_cast<void*>(self.native_handle()), std::forward<Args>(args)...);
+}
+
+/**
+ * 托管 System.String 包装。
+ */
+class String {
+public:
+    [[nodiscard]] std::string content() const;
+    [[nodiscard]] std::size_t length() const { return content().size(); }
+    [[nodiscard]] Object object() const;
+    [[nodiscard]] void* native_handle() const noexcept { return native_; }
+    [[nodiscard]] std::string toString() const { return content(); }
+
+private:
+    friend class Object;
+    template <typename, typename...>
+    friend struct detail::ReplacementEntry;
+    template <typename R>
+    friend R detail::convert_result(const detail::BoundSignature&, void*);
+    String(std::shared_ptr<detail::RuntimeContext> context, std::uint64_t generation, void* native);
+
+    std::shared_ptr<detail::RuntimeContext> context_;
+    std::uint64_t generation_{};
+    void* native_{};
+};
+
+/**
+ * 托管数组包装；元素类型由调用方声明。
+ */
+template <typename T>
+class Array {
+public:
+    [[nodiscard]] std::size_t length() const {
+        return detail::array_length(context_, generation_, array_);
+    }
+
+    [[nodiscard]] T at(std::size_t index) const {
+        void* raw = detail::array_element(context_, generation_, array_, index);
+        if constexpr (std::is_pointer_v<T>) {
+            return static_cast<T>(raw);
+        } else {
+            T value{};
+            void* data = detail::unbox_value(context_, generation_, static_cast<void*>(raw));
+            if (data != nullptr) std::memcpy(&value, data, sizeof(T));
+            return value;
+        }
+    }
+
+private:
+    friend class Object;
+    Array(std::shared_ptr<detail::RuntimeContext> context, std::uint64_t generation, void* array)
+        : context_(std::move(context)), generation_(generation), array_(array) {}
+
+    std::shared_ptr<detail::RuntimeContext> context_;
+    std::uint64_t generation_{};
+    void* array_{};
+};
+
+/**
+ * 托管对象数组的元素视图。
+ */
+template <>
+class Array<Object> {
+public:
+    [[nodiscard]] std::size_t length() const {
+        return detail::array_length(context_, generation_, array_);
+    }
+
+    [[nodiscard]] Object at(std::size_t index) const {
+        auto* raw = static_cast<void*>(detail::array_element(context_, generation_, array_, index));
+        return Object(context_, generation_, raw, nullptr, {});
+    }
+
+private:
+    friend class Object;
+    Array(std::shared_ptr<detail::RuntimeContext> context, std::uint64_t generation, void* array)
+        : context_(std::move(context)), generation_(generation), array_(array) {}
+
+    std::shared_ptr<detail::RuntimeContext> context_;
+    std::uint64_t generation_{};
+    void* array_{};
+};
+
+template <typename T>
+Array<T> Object::as_array() const {
+    return Array<T>(context_, generation_, native_);
+}
+
+/**
+ * RAII GCHandle；析构释放，不跨 runtime 代际使用。
+ */
+class GcHandle {
+public:
+    GcHandle() = default;
+    GcHandle(const GcHandle&) = delete;
+    GcHandle& operator=(const GcHandle&) = delete;
+    GcHandle(GcHandle&& other) noexcept
+        : context_(std::move(other.context_)), handle_(other.handle_) { other.handle_ = 0; }
+    GcHandle& operator=(GcHandle&& other) noexcept {
+        if (this != &other) {
+            free();
+            context_ = std::move(other.context_);
+            handle_ = other.handle_;
+            other.handle_ = 0;
+        }
+        return *this;
+    }
+    ~GcHandle() { free(); }
+
+    [[nodiscard]] bool valid() const noexcept { return handle_ != 0; }
+    [[nodiscard]] Object target() const;
+    void free() noexcept;
+
+private:
+    friend class Object;
+    GcHandle(std::shared_ptr<detail::RuntimeContext> context, std::uint32_t handle)
+        : context_(std::move(context)), handle_(handle) {}
+
+    std::shared_ptr<detail::RuntimeContext> context_;
+    std::uint32_t handle_{};
+};
+
+namespace detail {
+
+inline void* pack_argument(Object& value) noexcept { return value.native_handle(); }
+inline void* pack_argument(String& value) noexcept { return value.native_handle(); }
+
+template <>
+inline Object convert_result<Object>(const BoundSignature& binding, void* raw) {
+    Object result(binding.context, binding.generation, raw,
+                  static_cast<void*>(binding.descriptor.declaring_class),
+                  binding.descriptor.declaring_class_name);
+    return result;
+}
+
+template <>
+inline String convert_result<String>(const BoundSignature& binding, void* raw) {
+    return String(binding.context, binding.generation, reinterpret_cast<void*>(raw));
+}
+
+/// 用户回调参数类型 → native ABI 参数类型。
+template <typename T>
+struct native_argument { using type = T; };
+template <>
+struct native_argument<Object> { using type = void*; };
+template <>
+struct native_argument<String> { using type = void*; };
+
+template <typename T>
+using native_argument_t = typename native_argument<std::remove_cvref_t<T>>::type;
+
+} /// namespace detail
 
 /**
  * 一次 replacement 回调的上下文。
@@ -523,30 +913,78 @@ public:
     ReplacementCall(ReplacementCall&&) = delete;
     ReplacementCall& operator=(ReplacementCall&&) = delete;
 
-    /// 本次调用的实例；静态方法为 null。
-    [[nodiscard]] Il2CppObject* self() const noexcept { return self_; }
+    /// 兼容旧回调：本次调用的实例裸指针；静态方法为 null。
+    [[nodiscard]] void* self() const noexcept { return self_; }
+
+    /// 泛型调用目标：T=INB::Object 返回实例，T=INB::Class 返回声明类。
+    template <typename T = Object>
+    [[nodiscard]] T target() const {
+        static_assert(std::is_same_v<T, Object> || std::is_same_v<T, Class>,
+                      "self<T> supports only INB::Object or INB::Class");
+        if constexpr (std::is_same_v<T, Object>) {
+            if (record_ == nullptr || record_->is_static || self_ == nullptr) {
+                detail::report_and_throw(ErrorCode::scope_violation, ErrorStage::replacement, {},
+                                         "instance self is unavailable in a static replacement callback");
+            }
+            return Object(record_->context, record_->generation, self_, record_->declaring_class,
+                          record_->declaring_class_name);
+        } else {
+            if (record_ == nullptr) {
+                detail::report_and_throw(ErrorCode::scope_violation, ErrorStage::replacement, {},
+                                         "class self is unavailable outside the current callback");
+            }
+            return Class(record_->context, record_->generation, record_->declaring_class,
+                         record_->declaring_class_name, record_->image_name, record_->assembly_name);
+        }
+    }
+
+    /// 用户约定的单一入口：call.self<INB::Object>() / call.self<INB::Class>()。
+    /// 不带模板实参时走上面的兼容重载，返回裸指针。
+    template <typename T = Object>
+    [[nodiscard]] T self() const { return target<T>(); }
+
+    [[nodiscard]] bool is_static() const noexcept { return record_ != nullptr && record_->is_static; }
 
     /// 调用原实现；保留当前实例与隐藏 MethodInfo，可多次显式调用。
     Return original(Args... args) const {
         if (record_ == nullptr || record_->original == nullptr) {
-            throw BridgeError(make_error(ErrorCode::scope_violation, ErrorStage::replacement, {},
-                                         "original() is only available inside the current replacement callback"));
+            detail::report_and_throw(ErrorCode::scope_violation, ErrorStage::replacement, {},
+                                     "original() is only available inside the current replacement callback");
         }
+        auto raw_args = std::tuple<detail::native_argument_t<Args>...>{
+                to_native_argument<Args>(args)...};
+        return forward_original(raw_args, std::index_sequence_for<Args...>{});
+    }
+
+private:
+    template <typename T>
+    static detail::native_argument_t<T> to_native_argument(const T& value) {
+        if constexpr (std::is_same_v<T, Object>) {
+            return static_cast<void*>(value.native_handle());
+        } else if constexpr (std::is_same_v<T, String>) {
+            return reinterpret_cast<void*>(value.native_handle());
+        } else {
+            return value;
+        }
+    }
+
+    template <typename Tuple, std::size_t... Indices>
+    Return forward_original(Tuple& raw_args, std::index_sequence<Indices...>) const {
         if (record_->is_static) {
-            auto callable = reinterpret_cast<Return (*)(Args..., const void*)>(record_->original);
+            auto callable = reinterpret_cast<Return (*)(detail::native_argument_t<Args>..., const void*)>(record_->original);
             if constexpr (std::is_void_v<Return>) {
-                callable(args..., method_);
+                callable(std::get<Indices>(raw_args)..., method_);
                 return;
             } else {
-                return callable(args..., method_);
+                return callable(std::get<Indices>(raw_args)..., method_);
             }
         }
-        auto callable = reinterpret_cast<Return (*)(Il2CppObject*, Args..., const void*)>(record_->original);
+        auto callable = reinterpret_cast<Return (*)(void*, detail::native_argument_t<Args>..., const void*)>(record_->original);
         if constexpr (std::is_void_v<Return>) {
-            callable(self_, args..., method_);
+            callable(self_, std::get<Indices>(raw_args)..., method_);
             return;
         } else {
-            return callable(self_, args..., method_);
+            return callable(self_, std::get<Indices>(raw_args)..., method_);
         }
     }
 
@@ -554,11 +992,11 @@ private:
     template <typename, typename...>
     friend struct detail::ReplacementEntry;
 
-    ReplacementCall(const detail::ReplacementRecordHeader* record, Il2CppObject* self, const void* method) noexcept
+    ReplacementCall(const detail::ReplacementRecordHeader* record, void* self, const void* method) noexcept
         : record_(record), self_(self), method_(method) {}
 
     const detail::ReplacementRecordHeader* record_{};
-    Il2CppObject* self_{};
+    void* self_{};
     const void* method_{};
 };
 
@@ -567,14 +1005,16 @@ namespace detail {
 /// 每个 (Return, Args...) 组合对应的原生替换入口；static 与实例是两种槽形态。
 template <typename Return, typename... Args>
 struct ReplacementEntry {
-    static Return static_thunk(Args... args, const void* method) { return dispatch(nullptr, args..., method); }
+    static Return static_thunk(native_argument_t<Args>... args, const void* method) {
+        return dispatch(nullptr, args..., method);
+    }
 
-    static Return instance_thunk(Il2CppObject* self, Args... args, const void* method) {
+    static Return instance_thunk(void* self, native_argument_t<Args>... args, const void* method) {
         return dispatch(self, args..., method);
     }
 
 private:
-    static Return dispatch(Il2CppObject* self, Args... args, const void* method) {
+    static Return dispatch(void* self, native_argument_t<Args>... args, const void* method) {
         const auto* record = current_replacement_record();
         if (record == nullptr || record->callback == nullptr) {
             if constexpr (!std::is_void_v<Return>) return Return{};
@@ -585,17 +1025,37 @@ private:
         auto callback = reinterpret_cast<Return (*)(ReplacementCall<Return, Args...>&, Args...)>(record->callback);
         ReplacementCall<Return, Args...> call(record, self, method);
         try {
-            if constexpr (std::is_void_v<Return>) {
-                callback(call, args...);
-                return;
-            } else {
-                return callback(call, args...);
-            }
+            auto user_args = std::tuple<Args...>{to_user_argument<Args>(record, args)...};
+            return invoke_callback(callback, call, user_args, std::index_sequence_for<Args...>{});
         } catch (...) {
-            /// 用户异常隔离在 native 边界：节流报告并返回默认值，不自动补调用原函数。
+            /// 用户异常隔离在 native 边界：首次发现处已打印日志，这里只返回默认值。
             if (record->report_failure != nullptr) record->report_failure(const_cast<ReplacementRecordHeader*>(record));
             if constexpr (!std::is_void_v<Return>) return Return{};
             else return;
+        }
+    }
+
+    template <typename T>
+    static T to_user_argument(const ReplacementRecordHeader* record, native_argument_t<T> raw) {
+        if constexpr (std::is_same_v<T, Object>) {
+            return Object(record->context, record->generation,
+                          static_cast<void*>(raw), record->declaring_class,
+                          record->declaring_class_name);
+        } else if constexpr (std::is_same_v<T, String>) {
+            return String(record->context, record->generation, reinterpret_cast<void*>(raw));
+        } else {
+            return static_cast<T>(raw);
+        }
+    }
+
+    template <typename Callback, typename Tuple, std::size_t... Indices>
+    static Return invoke_callback(Callback callback, ReplacementCall<Return, Args...>& call,
+                                  Tuple& values, std::index_sequence<Indices...>) {
+        if constexpr (std::is_void_v<Return>) {
+            callback(call, std::get<Indices>(values)...);
+            return;
+        } else {
+            return callback(call, std::get<Indices>(values)...);
         }
     }
 };
@@ -609,23 +1069,29 @@ void Method::implementation(Return (*callback)(ReplacementCall<Return, Args...>&
     static_assert(detail::has_managed_name<Return>::value,
                   "replacement result type has no IL2CPP name mapping");
     if (callback == nullptr) {
-        throw BridgeError(make_error(ErrorCode::invalid_argument, ErrorStage::replacement, {},
-                                     "the replacement callback must not be null"));
+        detail::report_and_throw(ErrorCode::invalid_argument, ErrorStage::replacement, {},
+                                 "the replacement callback must not be null");
     }
 
     using CleanReturn = std::remove_cvref_t<Return>;
     const std::array<detail::ArgumentSpec, sizeof...(Args)> specifications{
-            detail::ArgumentSpec{std::is_pointer_v<std::remove_cvref_t<Args>>,
-                                 std::is_same_v<std::remove_cvref_t<Args>, Il2CppString*>,
+            detail::ArgumentSpec{detail::is_reference_carrier<Args>::value,
+                                 detail::is_string_carrier<Args>::value,
                                  managed_type_name<Args>}...};
     auto binding = detail::bind_method(context_, generation_, candidates_,
                                        declaring_class_name_ + "::" + name_,
-                                       std::is_pointer_v<CleanReturn>,
-                                       std::is_same_v<CleanReturn, Il2CppString*>,
+                                       detail::is_reference_carrier<CleanReturn>::value,
+                                       detail::is_string_carrier<CleanReturn>::value,
                                        managed_type_name<Return>, specifications, true);
 
     detail::ReplacementRequest request;
     request.signature = std::move(binding);
+    request.context = context_;
+    request.generation = generation_;
+    request.declaring_class = declaring_class_;
+    request.declaring_class_name = declaring_class_name_;
+    request.image_name = image_name_;
+    request.assembly_name = assembly_name_;
     request.callback = reinterpret_cast<void*>(callback);
     request.static_entry = reinterpret_cast<void*>(&detail::ReplacementEntry<Return, Args...>::static_thunk);
     request.instance_entry = reinterpret_cast<void*>(&detail::ReplacementEntry<Return, Args...>::instance_thunk);

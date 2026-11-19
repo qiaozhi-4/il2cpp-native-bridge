@@ -57,6 +57,7 @@ add_library(il2cpp_native_bridge STATIC
         src/facade/perform.cpp
         src/facade/queries.cpp
         src/facade/invocation.cpp
+        src/facade/public_objects.cpp
         src/metadata/handles.cpp
         src/metadata/class_query.cpp
         src/metadata/method_query.cpp
@@ -114,7 +115,14 @@ if (IL2CPP_NATIVE_BRIDGE_INSTALL)
             EXPORT il2cpp_native_bridgeTargets
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(FILES
+            include/il2cpp_native_bridge/il2cpp.hpp
+            include/il2cpp_native_bridge/detail_types.hpp
+            include/il2cpp_native_bridge/result.hpp
+            include/il2cpp_native_bridge/runtime_state.hpp
+            include/il2cpp_native_bridge/thread_attachment.hpp
+            include/il2cpp_native_bridge/unity_types.hpp
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/il2cpp_native_bridge)
 
     install(EXPORT il2cpp_native_bridgeTargets
             NAMESPACE il2cpp_native_bridge::

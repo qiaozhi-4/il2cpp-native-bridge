@@ -3,6 +3,8 @@
 #include "il2cpp_native_bridge/il2cpp.hpp"
 #include "il2cpp_native_bridge/result.hpp"
 
+struct Il2CppMethodInfo;
+
 namespace INB::detail {
 
 /**

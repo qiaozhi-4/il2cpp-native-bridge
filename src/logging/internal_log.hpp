@@ -13,7 +13,13 @@
  * __android_log_print」，调用点周围的配套代码（去重查表、字符串拼接、计时）要靠它一起丢弃，
  * 否则关掉轨迹后这些逻辑仍会照常执行。
  */
+#if defined(__ANDROID__)
 #include <android/log.h>
+#define INB_HOST_LOG(level, ...) ((void) __android_log_print(level, INB_LOG_TAG, __VA_ARGS__))
+#else
+#include <cstdio>
+#define INB_HOST_LOG(level, ...) ((void) std::fprintf(stderr, "[" INB_LOG_TAG "] " __VA_ARGS__))
+#endif
 
 #define INB_LOG_TAG "INB"
 
@@ -22,17 +28,17 @@
 /// 轨迹可用（全量）。
 #define INB_LOG_ENABLED 1
 
-#define INB_LOGE(...) ((void) __android_log_print(ANDROID_LOG_ERROR, INB_LOG_TAG, __VA_ARGS__))
-#define INB_LOGW(...) ((void) __android_log_print(ANDROID_LOG_WARN, INB_LOG_TAG, __VA_ARGS__))
-#define INB_LOGI(...) ((void) __android_log_print(ANDROID_LOG_INFO, INB_LOG_TAG, __VA_ARGS__))
-#define INB_LOGD(...) ((void) __android_log_print(ANDROID_LOG_DEBUG, INB_LOG_TAG, __VA_ARGS__))
+#define INB_LOGE(...) INB_HOST_LOG(ANDROID_LOG_ERROR, __VA_ARGS__)
+#define INB_LOGW(...) INB_HOST_LOG(ANDROID_LOG_WARN, __VA_ARGS__)
+#define INB_LOGI(...) INB_HOST_LOG(ANDROID_LOG_INFO, __VA_ARGS__)
+#define INB_LOGD(...) INB_HOST_LOG(ANDROID_LOG_DEBUG, __VA_ARGS__)
 
 #else
 
 /// 只留错误。
 #define INB_LOG_ENABLED 0
 
-#define INB_LOGE(...) ((void) __android_log_print(ANDROID_LOG_ERROR, INB_LOG_TAG, __VA_ARGS__))
+#define INB_LOGE(...) INB_HOST_LOG(ANDROID_LOG_ERROR, __VA_ARGS__)
 #define INB_LOGW(...) ((void) 0)
 #define INB_LOGI(...) ((void) 0)
 #define INB_LOGD(...) ((void) 0)

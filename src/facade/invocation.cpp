@@ -34,9 +34,17 @@ void require_not_generic(const Api& api, const Il2CppMethodInfo* method, std::st
         fail(ErrorCode::missing_api, ErrorStage::bind, std::string(path),
              "generic method identification exports are unavailable");
     }
-    if (api.method_is_generic(method) || api.method_is_inflated(method)) {
+    const bool generic = api.method_is_generic(method);
+    const bool inflated = api.method_is_inflated(method);
+    if constexpr (INB_LOG_ENABLED) {
+        INB_LOGD("bind %.*s: generic=%d inflated=%d", static_cast<int>(path.size()), path.data(),
+                 generic ? 1 : 0, inflated ? 1 : 0);
+    }
+    /// 开放泛型定义缺少具体类型，无法直接 runtime_invoke；
+    /// 已具体化的 inflated 方法（如 Singleton<T> 针对具体类的 getter）携带完整 MethodInfo，可直接调用。
+    if (generic && !inflated) {
         fail(ErrorCode::unsupported_runtime, ErrorStage::bind, std::string(path),
-             "generic or inflated methods are not supported");
+             "open generic method definitions are not supported");
     }
 }
 
@@ -66,7 +74,7 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
     }
 
     const auto& descriptor = candidates.front();
-    require_not_generic(view.api, descriptor.native, path);
+    require_not_generic(view.api, static_cast<const Il2CppMethodInfo*>(descriptor.native), path);
 
     if (descriptor.parameter_types.size() != arguments.size()) {
         fail(ErrorCode::invalid_argument, ErrorStage::bind, path,
@@ -85,7 +93,7 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
                 fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
                      "the result is not a string");
             }
-        } else if (is_value_type(view.api, descriptor.return_type.native, path)) {
+        } else if (is_value_type(view.api, static_cast<const Il2CppType*>(descriptor.return_type.native), path)) {
             fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
                  "a value-type result cannot be bound to a reference carrier");
         }
@@ -122,7 +130,7 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
                     fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
                          "the parameter is not a string");
                 }
-            } else if (is_value_type(view.api, native, path)) {
+            } else if (is_value_type(view.api, static_cast<const Il2CppType*>(native), path)) {
                 fail(ErrorCode::type_mismatch, ErrorStage::bind, path,
                      "a value-type parameter cannot be bound to a reference carrier");
             }
@@ -144,29 +152,30 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
     return binding;
 }
 
-Il2CppObject* invoke_bound(const BoundSignature& binding,
-                           Il2CppObject* instance,
+void* invoke_bound(const BoundSignature& binding,
+                   void* instance,
                            std::span<void*> arguments) {
     const auto& view = require_scope_for(binding.context, binding.generation, binding.path);
     const auto& descriptor = binding.descriptor;
+    auto* managed_instance = static_cast<Il2CppObject*>(instance);
 
     if (descriptor.is_static) {
-        if (instance != nullptr) {
+        if (managed_instance != nullptr) {
             fail(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
                  "a static method does not take an instance");
         }
     } else {
-        if (instance == nullptr) {
+        if (managed_instance == nullptr) {
             fail(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
                  "an instance method requires a managed object");
         }
         require_assignability_exports(view.api, binding.path);
-        Il2CppClass* actual = view.api.object_get_class(instance);
+        Il2CppClass* actual = view.api.object_get_class(managed_instance);
         if (actual == nullptr) {
             fail(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
                  "the instance has no managed class");
         }
-        if (!view.api.class_is_assignable_from(descriptor.declaring_class, actual)) {
+        if (!view.api.class_is_assignable_from(static_cast<Il2CppClass*>(descriptor.declaring_class), actual)) {
             fail(ErrorCode::invalid_instance, ErrorStage::invoke, binding.path,
                  "the instance is not compatible with the declaring class");
         }
@@ -182,7 +191,7 @@ Il2CppObject* invoke_bound(const BoundSignature& binding,
         if (value == nullptr) continue;
 
         require_assignability_exports(view.api, binding.path);
-        Il2CppClass* target_class = view.api.class_from_type(target);
+        Il2CppClass* target_class = view.api.class_from_type(static_cast<const Il2CppType*>(target));
         Il2CppClass* actual = view.api.object_get_class(value);
         if (target_class == nullptr || actual == nullptr) {
             fail(ErrorCode::missing_api, ErrorStage::invoke, binding.path,
@@ -195,7 +204,7 @@ Il2CppObject* invoke_bound(const BoundSignature& binding,
     }
 
     Il2CppObject* exception = nullptr;
-    Il2CppObject* result = view.api.runtime_invoke(descriptor.native, instance, arguments.data(), &exception);
+    Il2CppObject* result = view.api.runtime_invoke(static_cast<const Il2CppMethodInfo*>(descriptor.native), managed_instance, arguments.data(), &exception);
     if (exception != nullptr) {
         fail(ErrorCode::managed_exception, ErrorStage::invoke, binding.path,
              "the managed method threw an exception");
@@ -203,7 +212,7 @@ Il2CppObject* invoke_bound(const BoundSignature& binding,
     return result;
 }
 
-void unbox_result(const BoundSignature& binding, Il2CppObject* boxed, void* destination, std::size_t size) {
+void unbox_result(const BoundSignature& binding, void* boxed, void* destination, std::size_t size) {
     const auto& view = require_scope_for(binding.context, binding.generation, binding.path);
     /// 能力缺失优先报告：此时无论结果是否为空都无法安全取值。
     if (view.api.object_unbox == nullptr) {
@@ -214,7 +223,7 @@ void unbox_result(const BoundSignature& binding, Il2CppObject* boxed, void* dest
         fail(ErrorCode::invocation_failed, ErrorStage::invoke, binding.path,
              "a value-type result was not produced");
     }
-    void* data = view.api.object_unbox(boxed);
+    void* data = view.api.object_unbox(static_cast<Il2CppObject*>(boxed));
     if (data == nullptr) {
         fail(ErrorCode::invocation_failed, ErrorStage::invoke, binding.path,
              "the boxed result is empty");

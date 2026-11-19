@@ -19,12 +19,12 @@ namespace detail {
 /// 便捷层把底层 Result 的错误提升到 BridgeError，交由 perform 边界统一转换。
 template <typename T>
 T unwrap_or_throw(Result<T> result) {
-    if (!result) throw BridgeError(result.error());
+    if (!result) detail::report_and_throw(result.error().code, result.error().stage, result.error().path, result.error().message);
     return result.take_value();
 }
 
 inline void unwrap_or_throw(Result<void> result) {
-    if (!result) throw BridgeError(result.error());
+    if (!result) detail::report_and_throw(result.error().code, result.error().stage, result.error().path, result.error().message);
 }
 
 } /// namespace detail
@@ -40,8 +40,8 @@ public:
     /// 包装一个已有的托管字符串；不能为空。
     static ManagedString adopt(Runtime runtime, Il2CppString* value) {
         if (value == nullptr) {
-            throw BridgeError(make_error(ErrorCode::invalid_argument,
-                                         "managed string must not be null"));
+            detail::report_and_throw(ErrorCode::invalid_argument,
+                                     ErrorStage::lookup, {}, "managed string must not be null");
         }
         return ManagedString(std::move(runtime), value);
     }

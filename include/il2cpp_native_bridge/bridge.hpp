@@ -1,5 +1,6 @@
 #pragma once
 
+#include "detail_types.hpp"
 #include "hook_backend.hpp"
 #include "result.hpp"
 #include "runtime_state.hpp"
@@ -124,52 +125,9 @@ struct RuntimeWaitOptions {
     std::function<void(const RuntimeSnapshot&, std::chrono::milliseconds)> on_timeout;
 };
 
-/**
- * C++ 类型到 IL2CPP 托管类型名的映射；无映射的类型无法参与方法/字段查询。
- *
- * 通过特化扩展新类型，特化需提供静态成员 value。
- *
- * @tparam T 要映射的 C++ 类型。
- */
-template <typename T>
-struct ManagedTypeName;
-
-/// 各内建类型与托管类型名的映射特化。
-template <> struct ManagedTypeName<void> { static constexpr std::string_view value = "System.Void"; };
-template <> struct ManagedTypeName<bool> { static constexpr std::string_view value = "System.Boolean"; };
-template <> struct ManagedTypeName<std::int8_t> { static constexpr std::string_view value = "System.SByte"; };
-template <> struct ManagedTypeName<std::uint8_t> { static constexpr std::string_view value = "System.Byte"; };
-template <> struct ManagedTypeName<std::int16_t> { static constexpr std::string_view value = "System.Int16"; };
-template <> struct ManagedTypeName<std::uint16_t> { static constexpr std::string_view value = "System.UInt16"; };
-template <> struct ManagedTypeName<std::int32_t> { static constexpr std::string_view value = "System.Int32"; };
-template <> struct ManagedTypeName<std::uint32_t> { static constexpr std::string_view value = "System.UInt32"; };
-template <> struct ManagedTypeName<std::int64_t> { static constexpr std::string_view value = "System.Int64"; };
-template <> struct ManagedTypeName<std::uint64_t> { static constexpr std::string_view value = "System.UInt64"; };
-template <> struct ManagedTypeName<float> { static constexpr std::string_view value = "System.Single"; };
-template <> struct ManagedTypeName<double> { static constexpr std::string_view value = "System.Double"; };
+/// 托管引用载体与字符串的映射仍由底层保留，供旧 Query/Invoke API 使用。
 template <> struct ManagedTypeName<Il2CppObject*> { static constexpr std::string_view value = "System.Object"; };
 template <> struct ManagedTypeName<Il2CppString*> { static constexpr std::string_view value = "System.String"; };
-
-/// 基础值类型的指针载体：用于 Hook 的 byref/ref/out 参数，value 为去掉 & 的基础名。
-template <> struct ManagedTypeName<bool*> { static constexpr std::string_view value = "System.Boolean"; };
-template <> struct ManagedTypeName<std::int8_t*> { static constexpr std::string_view value = "System.SByte"; };
-template <> struct ManagedTypeName<std::uint8_t*> { static constexpr std::string_view value = "System.Byte"; };
-template <> struct ManagedTypeName<std::int16_t*> { static constexpr std::string_view value = "System.Int16"; };
-template <> struct ManagedTypeName<std::uint16_t*> { static constexpr std::string_view value = "System.UInt16"; };
-template <> struct ManagedTypeName<std::int32_t*> { static constexpr std::string_view value = "System.Int32"; };
-template <> struct ManagedTypeName<std::uint32_t*> { static constexpr std::string_view value = "System.UInt32"; };
-template <> struct ManagedTypeName<std::int64_t*> { static constexpr std::string_view value = "System.Int64"; };
-template <> struct ManagedTypeName<std::uint64_t*> { static constexpr std::string_view value = "System.UInt64"; };
-template <> struct ManagedTypeName<float*> { static constexpr std::string_view value = "System.Single"; };
-template <> struct ManagedTypeName<double*> { static constexpr std::string_view value = "System.Double"; };
-
-/**
- * 免去书写 ManagedTypeName<T>::value 的便捷变量模板。
- *
- * @tparam T 要映射的 C++ 类型，去掉 cv 与引用后查找映射。
- */
-template <typename T>
-inline constexpr std::string_view managed_type_name = ManagedTypeName<std::remove_cvref_t<T>>::value;
 
 /**
  * IL2CPP runtime 的查询入口；实例轻量可复制，共享进程内唯一的运行时 context。

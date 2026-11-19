@@ -14,6 +14,8 @@
 #include <utility>
 #include <vector>
 
+struct Il2CppMethodInfo;
+
 namespace INB::detail {
 namespace {
 
@@ -60,7 +62,7 @@ ManagedRecord* find_record(void* target) {
 }
 
 Result<void*> entry_of(const MethodDescriptor& descriptor, const std::string& path) {
-    auto entry = resolve_method_entry(descriptor.native);
+    auto entry = resolve_method_entry(static_cast<const Il2CppMethodInfo*>(descriptor.native));
     if (!entry) {
         fail(entry.error().code, ErrorStage::replacement, path, entry.error().message);
     }
@@ -169,6 +171,12 @@ void install_replacement(const ReplacementRequest& request) {
     record->header.report_failure = &report_callback_failure;
     record->header.original = nullptr;
     record->header.is_static = signature.descriptor.is_static;
+    record->header.context = request.context;
+    record->header.generation = request.generation;
+    record->header.declaring_class = request.declaring_class;
+    record->header.declaring_class_name = request.declaring_class_name;
+    record->header.image_name = request.image_name;
+    record->header.assembly_name = request.assembly_name;
     record->target = target;
     record->context = signature.context;
     record->path = signature.path;
@@ -257,7 +265,7 @@ ReplacementState replacement_state_of(const std::shared_ptr<RuntimeContext>& con
              "the method must be unique before its state can be read");
     }
 
-    auto entry = resolve_method_entry(candidates.front().native);
+    auto entry = resolve_method_entry(static_cast<const Il2CppMethodInfo*>(candidates.front().native));
     if (!entry) return ReplacementState::not_installed;
 
     auto& managed = registry();

@@ -157,13 +157,13 @@ Result<ReadyView> core_ready_view(const std::shared_ptr<RuntimeContext>& context
 
 AccessScope::AccessScope(std::shared_ptr<RuntimeContext> context) : context_(std::move(context)) {
     if (context_ == nullptr) {
-        throw BridgeError(make_error(ErrorCode::internal_error, ErrorStage::scope, {}, "runtime context is missing"));
+        report_and_throw(ErrorCode::internal_error, ErrorStage::scope, {}, "runtime context is missing");
     }
 
     if (auto* current = current_access_scope(); current != nullptr) {
         if (current->context_ != context_) {
-            throw BridgeError(make_error(ErrorCode::scope_violation, ErrorStage::scope, {},
-                                         "a different runtime context is already active on this thread"));
+            report_and_throw(ErrorCode::scope_violation, ErrorStage::scope, {},
+                             "a different runtime context is already active on this thread");
         }
         view_ = current->view_;
         previous_ = current;
@@ -172,11 +172,11 @@ AccessScope::AccessScope(std::shared_ptr<RuntimeContext> context) : context_(std
     }
 
     auto ready = core_ready_view(context_);
-    if (!ready) throw BridgeError(ready.error());
+    if (!ready) report_and_throw(ready.error().code, ready.error().stage, ready.error().path, ready.error().message);
     view_ = std::move(ready.value());
 
     auto lease = acquire_thread(context_, view_.api, view_.domain);
-    if (!lease) throw BridgeError(lease.error());
+    if (!lease) report_and_throw(lease.error().code, lease.error().stage, lease.error().path, lease.error().message);
     lease_ = std::move(lease).take_value();
     previous_ = nullptr;
     tls_scope_top = this;
@@ -191,13 +191,13 @@ AccessScope* current_access_scope() noexcept { return tls_scope_top; }
 
 const ReadyView& require_access_scope() {
     if (tls_scope_top == nullptr) {
-        throw BridgeError(make_error(ErrorCode::scope_violation, ErrorStage::scope, {},
-                                     "facade runtime operation requires an active perform or replacement scope"));
+        report_and_throw(ErrorCode::scope_violation, ErrorStage::scope, {},
+                         "facade runtime operation requires an active perform or replacement scope");
     }
     return tls_scope_top->view();
 }
 
-void fail(ErrorCode code, ErrorStage stage, std::string path, std::string message) {
+void report_and_throw(ErrorCode code, ErrorStage stage, std::string path, std::string message) {
     /// 参考 BNM：在失败发生的唯一出口就地打印 logcat，携带阶段、定位路径与原因。
     /// 只输出诊断文本，不含对象内容或裸地址；日志开关关闭时该调用编译为空操作。
     if (!path.empty()) {
@@ -206,6 +206,10 @@ void fail(ErrorCode code, ErrorStage stage, std::string path, std::string messag
         INB_LOGE("[%s] %s", stage_name(stage), message.c_str());
     }
     throw BridgeError(make_error(code, stage, std::move(path), std::move(message)));
+}
+
+void fail(ErrorCode code, ErrorStage stage, std::string path, std::string message) {
+    report_and_throw(code, stage, std::move(path), std::move(message));
 }
 
 const ReadyView& require_scope_for(const std::shared_ptr<RuntimeContext>& context,

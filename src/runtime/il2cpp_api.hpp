@@ -54,6 +54,10 @@ struct Api {
 
     Il2CppClass* (*object_get_class)(Il2CppObject*){};
     Il2CppObject* (*object_new)(Il2CppClass*){};
+    std::uint32_t (*gchandle_new)(Il2CppObject*, bool){};
+    std::uint32_t (*gchandle_new_weakref)(Il2CppObject*, bool){};
+    void (*gchandle_free)(std::uint32_t){};
+    Il2CppObject* (*gchandle_get_target)(std::uint32_t){};
     const Il2CppType* (*class_get_type)(Il2CppClass*){};
     Il2CppObject* (*type_get_object)(const Il2CppType*){};
     Il2CppArray* (*array_new)(Il2CppClass*, std::size_t){};
@@ -122,6 +126,10 @@ inline constexpr const char* kArray = "array";
     X_REQUIRED(free_memory, "il2cpp_free")                                                     \
     X_OPTIONAL(object_get_class, "il2cpp_object_get_class", capability_group::kInstance)        \
     X_OPTIONAL(object_new, "il2cpp_object_new", capability_group::kAllocation)                  \
+    X_OPTIONAL(gchandle_new, "il2cpp_gchandle_new", capability_group::kInstance)                  \
+    X_OPTIONAL(gchandle_new_weakref, "il2cpp_gchandle_new_weakref", capability_group::kInstance)  \
+    X_OPTIONAL(gchandle_free, "il2cpp_gchandle_free", capability_group::kInstance)                \
+    X_OPTIONAL(gchandle_get_target, "il2cpp_gchandle_get_target", capability_group::kInstance)    \
     X_OPTIONAL(class_get_type, "il2cpp_class_get_type", capability_group::kAllocation)          \
     X_OPTIONAL(type_get_object, "il2cpp_type_get_object", capability_group::kAllocation)        \
     X_OPTIONAL(array_new, "il2cpp_array_new", capability_group::kAllocation)                    \
