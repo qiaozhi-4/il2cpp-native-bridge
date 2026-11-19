@@ -11,7 +11,7 @@ namespace INB::detail {
          * 取共享 interceptor。
          *
          * Gum 必须先 `gum_init_embedded()` 再 `gum_interceptor_obtain()`：
-         * 直接 obtain 会走未初始化的 GType 注册路径并在设备上崩溃（T044 实测）。
+         * 直接 obtain 会走未初始化的 GType 注册路径，在设备上一调用就崩。
          */
         GumInterceptor* interceptor() {
             static std::once_flag initialized;

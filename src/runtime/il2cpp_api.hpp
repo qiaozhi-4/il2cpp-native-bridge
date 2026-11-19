@@ -181,7 +181,7 @@ namespace INB::detail {
      * @param missing_symbol_overrides 缺失符号的地址覆盖表。
      * @param log_resolution 为真时按符号逐条打印解析结果；调用方负责保证每次运行只传一次真，
      *                       否则轮询重试会把同一批导出刷进 logcat。
-     * @return 解析结果；lookup 为空时所有必需导出记为缺失。
+     * @return 解析结果；lookup 为空时不解析任何符号，missing_required 只记一条 "symbol resolver"。
      */
     ResolvedExports resolve_exports(void* module,
                                     SymbolLookup lookup,

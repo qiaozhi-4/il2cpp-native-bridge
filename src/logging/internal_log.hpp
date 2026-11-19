@@ -3,7 +3,8 @@
 /**
  * il2cpp-native-bridge 内部日志。
  *
- * 风格参考 BNM：用编译期开关控制。日志只写 logcat，不依赖宿主 Logger，也不进 ImGui 面板。
+ * 风格参考 BNM：用编译期开关控制。Android 上只写 logcat（其他平台退到 stderr），不依赖宿主
+ * Logger，也不进 ImGui 面板。
  *
  * 只有两档，由 CMake 是否定义 INB_ENABLE_LOGCAT 决定：
  * - 定义（Android Debug）：全量输出 E/W/I/D。

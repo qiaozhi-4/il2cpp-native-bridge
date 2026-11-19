@@ -31,7 +31,8 @@ namespace INB::detail {
     /// 该地址是否被 managed 替换占用。
     bool managed_replacement_active(void* target);
 
-    /// 恢复当前 managed target；无 managed 项时幂等成功。
+    /// 撤销 managed 替换；没有记录时直接返回，重复撤销不算失败。
+    /// 目标被旧 Hook 占用时抛 owner_conflict；仍有调用停留在旧入口时抛 restore_pending。
     void revert_replacement(const std::shared_ptr<RuntimeContext>& context,
                             std::uint64_t generation,
                             const std::vector<MethodDescriptor>& candidates,

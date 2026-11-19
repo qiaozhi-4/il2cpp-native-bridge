@@ -174,7 +174,7 @@ namespace INB::detail {
 
     void report_and_throw(ErrorCode code, ErrorStage stage, std::string path, std::string message) {
         /// 参考 BNM：在失败发生的唯一出口就地打印 logcat，携带阶段、定位路径与原因。
-        /// 只输出诊断文本，不含对象内容或裸地址；日志开关关闭时该调用编译为空操作。
+        /// 只输出诊断文本，不含对象内容或裸地址；E 级日志不受 INB_ENABLE_LOGCAT 影响，始终保留。
         if (!path.empty()) {
             INB_LOGE("[%s] %s: %s", stage_name(stage), path.c_str(), message.c_str());
         } else {

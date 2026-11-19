@@ -246,7 +246,9 @@ namespace INB {
      * 类别（值/引用）由绑定期按导出能力判定，不在此缓存，避免把不可用能力当成已知事实。
      */
     struct TypeDescriptor {
+        /// 借用自 IL2CPP 的类型指针，本结构不拥有。
         void* native{};
+        /// 规范化后的托管名，如 System.Int32、UnityEngine.Vector2。
         std::string name;
     };
 
@@ -256,9 +258,13 @@ namespace INB {
      * 不拥有 runtime context，可在作用域外保存和读取名称/签名；native 指针的有效期由 runtime 卸载决定。
      */
     struct MethodDescriptor {
+        /// 借用自 IL2CPP 的 MethodInfo 指针。
         void* native{};
+        /// 解析该方法时所在的类；方法继承自基类时与查询类不同。
         void* declaring_class{};
+        /// 解析上下文中的类全名，用于拼错误路径与 self<Class>()。
         std::string declaring_class_name;
+        /// 方法短名，不含类名。
         std::string name;
         TypeDescriptor return_type;
         std::vector<TypeDescriptor> parameter_types;
@@ -569,6 +575,12 @@ namespace INB {
         std::string assembly_name_;
     };
 
+    /**
+     * 一个已解析方法的句柄；候选多于一个时先用 overload 收窄。
+     *
+     * invoke/invoke_on/implementation 都会先绑定静态签名，绑定失败、实例不兼容或托管异常
+     * 一律抛 BridgeError，不返回错误码。
+     */
     class Method {
     public:
         /// 按参数类型名继续缩小候选；没有候选时抛 not_found。候选不是可执行句柄。
@@ -598,10 +610,10 @@ namespace INB {
         template <typename Return, typename... Args>
         void implementation(Return (*callback)(ReplacementCall<Return, Args...>&, Args...)) const;
 
-        /// 恢复当前 managed target；成功后再调用走原实现。
+        /// 撤销当前替换；成功后调用回到原实现。仍有调用停留在旧入口时抛 restore_pending，可稍后重试。
         void revert() const;
 
-        /// 当前 managed 替换的状态。
+        /// 当前替换的状态；没有替换时为 not_installed。
         [[nodiscard]] ReplacementState replacement_state() const;
 
     private:
@@ -632,6 +644,7 @@ namespace INB {
      * 托管字段包装；由 Class（静态字段）或 Object（实例字段）创建。
      *
      * 实例字段绑定了所属对象，get/set 不再需要额外传入实例。
+     * get/set 会先核对字段的托管类型名，与 T 不符时抛 BridgeError，不做指针重解释。
      */
     class Field {
     public:
@@ -690,6 +703,9 @@ namespace INB {
 
     /**
      * 托管对象实例包装；非拥有，不阻止 GC 回收，需要保活时使用 ref()。
+     *
+     * 类、字段、方法的解析失败都抛 BridgeError，不会返回空的包装对象；对象本身可以为空，
+     * 用 isNull() 判断。
      */
     class Object {
     public:
@@ -697,12 +713,16 @@ namespace INB {
         [[nodiscard]] bool isNull() const noexcept { return native_ == nullptr; }
         [[nodiscard]] Class klass() const;
         [[nodiscard]] Field field(std::string_view name) const;
+        /// 按名字枚举本类方法候选；找不到抛 BridgeError，多个候选可用 overload 收窄。
         [[nodiscard]] Method method(std::string_view name) const;
+        /// 按名字与托管参数个数收窄到唯一候选；找不到抛 BridgeError。
         [[nodiscard]] Method method(std::string_view name, std::size_t managed_parameter_count) const;
         [[nodiscard]] String as_string() const;
         template <typename T>
         [[nodiscard]] Array<T> as_array() const;
+        /// 创建强引用 GCHandle 阻止回收；pin 为真时同时固定对象地址。
         [[nodiscard]] GcHandle ref(bool pin) const;
+        /// 创建弱引用 GCHandle：不阻止回收，目标被回收后 target() 返回空对象。
         [[nodiscard]] GcHandle weak_ref(bool pin) const;
         [[nodiscard]] std::string toString() const;
         [[nodiscard]] void* native_handle() const noexcept { return native_; }
@@ -831,7 +851,9 @@ namespace INB {
      */
     class String {
     public:
+        /// 读取 UTF-16 内容并转成 UTF-8；对象为空或缺少字符串导出时抛 BridgeError。
         [[nodiscard]] std::string content() const;
+        /// 等于 content().size()，即 UTF-8 字节数，不是 System.String.Length。
         [[nodiscard]] std::size_t length() const { return content().size(); }
         [[nodiscard]] Object object() const;
         [[nodiscard]] void* native_handle() const noexcept { return native_; }
@@ -860,6 +882,7 @@ namespace INB {
             return detail::array_length(context_, generation_, array_);
         }
 
+        /// 按下标取元素；越界抛 BridgeError，值类型按 unbox 后的字节复制。
         [[nodiscard]] T at(std::size_t index) const {
             void* raw = detail::array_element(context_, generation_, array_, index);
             if constexpr (std::is_pointer_v<T>) {
@@ -892,6 +915,7 @@ namespace INB {
             return detail::array_length(context_, generation_, array_);
         }
 
+        /// 按下标取元素；越界抛 BridgeError。
         [[nodiscard]] Object at(std::size_t index) const {
             auto* raw = static_cast<void*>(detail::array_element(context_, generation_, array_, index));
             return Object(context_, generation_, raw, nullptr, {});
@@ -937,8 +961,11 @@ namespace INB {
         }
         ~GcHandle() { free(); }
 
+        /// 是否持有一个 GCHandle。
         [[nodiscard]] bool valid() const noexcept { return handle_ != 0; }
+        /// 取回目标对象；句柄已释放或目标被回收时返回空对象。
         [[nodiscard]] Object target() const;
+        /// 立即释放句柄；重复调用与析构时调用都安全。
         void free() noexcept;
 
     private:

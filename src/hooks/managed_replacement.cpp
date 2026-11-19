@@ -19,7 +19,7 @@ struct Il2CppMethodInfo;
 namespace INB::detail {
     namespace {
 
-        /// 同时占用 managed 状态的上限；与契约的 256 个名额一致。
+        /// 同时生效的 managed 替换名额上限；用满后按 resource_exhausted 失败，记录不会自动淘汰。
         constexpr std::size_t kManagedSlotLimit = 256;
 
         struct ManagedRecord {
@@ -87,7 +87,7 @@ namespace INB::detail {
                      "the replacement is still draining; retry revert after in-flight calls return");
             }
 
-            /// 记录在此之后就被释放，日志必须先取到它自有的 path。
+            /// 到此记录已解除所有权，之后不得再访问它的任何字段。
             {
                 auto& managed = registry();
                 std::lock_guard lock(managed.mutex);

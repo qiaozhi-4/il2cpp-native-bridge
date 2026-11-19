@@ -6,8 +6,10 @@
 #include <string_view>
 
 namespace {
+    /// 非法 UTF-8 / UTF-16 序列统一替换成的码点。
     constexpr std::uint32_t kReplacement = 0xFFFD;
 
+    /// 把码点编码成 UTF-8 追加到 output；调用方保证码点落在合法范围内。
     void append_utf8(std::string& output, std::uint32_t code_point) {
         if (code_point <= 0x7F) {
             output.push_back(static_cast<char>(code_point));
@@ -26,6 +28,7 @@ namespace {
         }
     }
 
+    /// UTF-8 转 UTF-16；非法字节序列与代理区码点按一个 U+FFFD 处理，不中断转换。
     std::u16string to_utf16(std::string_view input) {
         std::u16string output;
         output.reserve(input.size());
@@ -160,6 +163,7 @@ namespace INB {
             return Result<Il2CppString*>::failure(make_error(ErrorCode::missing_api,
                                                             "il2cpp_string_new_utf16 is unavailable"));
         }
+        /// 空串也给出非空缓冲，避免把 nullptr 交给目标导出。
         const std::uint16_t empty[] = {0};
         const auto* chars = value.empty() ? empty : reinterpret_cast<const std::uint16_t*>(value.data());
         auto* result = api.string_new_utf16(chars, static_cast<std::uint32_t>(value.size()));

@@ -38,9 +38,14 @@ namespace INB {
     struct MethodHandle;
     struct MethodMetadata;
 
-    /// 宿主注入的 IL2CPP 导出符号查找函数。
+    /**
+     * 宿主注入的 IL2CPP 符号查找函数。
+     *
+     * module 是 set_symbol_lookup 注册时传入的句柄，原样回传；符号名来自库内的导出清单。
+     * 返回 nullptr 表示该符号不可用：库不再回退 dlsym，只再查 set_export_override 登记的表。
+     */
     using RuntimeSymbolLookup = void* (*)(void* module, const char* symbol_name);
-    /// 判断模块是否已可被 RuntimeSymbolLookup 扫描。
+    /// 宿主判断模块是否已可被 RuntimeSymbolLookup 扫描；返回 false 时库继续等待，不记为缺失导出。
     using RuntimeSymbolLookupReady = bool (*)(void* module);
 
     namespace detail {
@@ -48,7 +53,7 @@ namespace INB {
         struct HookState;
         struct RuntimeContext;
 
-        /// 返回 Hook 的原函数跳板；state 由 HookHandle 持有的不透明指针，移除后返回空指针。
+        /// 返回 Hook 的原函数跳板；state 是 HookHandle 持有的不透明指针，Hook 已移除或指针为空时返回空指针。
         void* hook_original(const void* state) noexcept;
 
         /// 以注入的导出表构造 Runtime，仅供测试使用。
@@ -125,7 +130,7 @@ namespace INB {
         std::function<void(const RuntimeSnapshot&, std::chrono::milliseconds)> on_timeout;
     };
 
-    /// 托管引用载体与字符串的映射仍由底层保留，供旧 Query/Invoke API 使用。
+    /// 旧 Query/Invoke API 用裸指针接收托管引用，这里补上类型名映射，让裸指针也能参与签名绑定。
     template <> struct ManagedTypeName<Il2CppObject*> { static constexpr std::string_view value = "System.Object"; };
     template <> struct ManagedTypeName<Il2CppString*> { static constexpr std::string_view value = "System.String"; };
 
@@ -329,7 +334,7 @@ namespace INB {
         ClassQuery in_assembly(std::string_view assembly_name) const;
         /// 是否成功解析到类。
         [[nodiscard]] bool found() const noexcept { return result_.has_value(); }
-        /// 解析失败时的错误；found() 为真时读取行为由 Result 决定。
+        /// 解析失败时的错误；只在 found() 为假时读取，成功时取值会抛 std::bad_variant_access。
         [[nodiscard]] const Error& error() const { return result_.error(); }
         /**
          * 类的完整托管名。
@@ -432,7 +437,7 @@ namespace INB {
         public:
             /// 是否成功解析到字段。
             [[nodiscard]] bool found() const noexcept { return field_.has_value(); }
-            /// 解析失败时的错误。
+            /// 解析失败时的错误；只在 found() 为假时读取，成功时取值会抛 std::bad_variant_access。
             [[nodiscard]] const Error& error() const { return field_.error(); }
             /**
              * 字段类型的托管名。
@@ -542,7 +547,7 @@ namespace INB {
         public:
             /// 是否成功解析到方法。
             [[nodiscard]] bool found() const noexcept { return method_.has_value(); }
-            /// 解析失败时的错误。
+            /// 解析失败时的错误；只在 found() 为假时读取，成功时取值会抛 std::bad_variant_access。
             [[nodiscard]] const Error& error() const { return method_.error(); }
 
         protected:

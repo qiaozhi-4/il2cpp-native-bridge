@@ -70,6 +70,7 @@ namespace INB::detail {
         return Runtime(std::move(context));
     }
 
+    /// 进程内唯一的 runtime context：门面与 Runtime::current() 共用，静态存储期到进程结束。
     std::shared_ptr<RuntimeContext> current_runtime_context() {
         static const auto context = make_runtime_context();
         return context;

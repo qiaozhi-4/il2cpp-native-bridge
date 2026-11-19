@@ -42,21 +42,26 @@ namespace INB::detail {
     };
 
     struct RuntimeContext {
+        /// 保护下面所有可变态；runtime 调用与用户回调都在锁外执行。
         mutable std::mutex mutex;
         Api api;
+        /// 传给符号解析器的模块句柄：可能是 libil2cpp.so，也可能是宿主自定义上下文。
         void* module{};
+        /// module 是否由本库打开；只有 true 时析构才关闭它。
         bool owns_module{};
         Il2CppDomain* domain{};
+        /// 宿主注入的符号查找器；为空时用库内 dlsym 实现。
         SymbolLookup symbol_lookup{};
         SymbolLookupReady symbol_lookup_ready{};
         RuntimeSnapshot snapshot;
         CoreSnapshot core;
         /// 缺失的可选导出按能力分组；非注入式解析时填充，用于按需失败诊断。
         std::unordered_map<std::string, std::vector<std::string>> missing_by_group;
+        /// 导出表由宿主直接注入（测试或自带表），此时不发现模块、也不解析符号。
         bool injected_api{};
         /// 方法/字段/程序集/镜像/类名解析结果；键已含代际。
         LookupCache<std::string, void*> metadata_cache{kMetadataCacheLimit};
-        /// 类解析结果；保留镜像名，使命中与未命中两条路径返回一致的集合名。
+        /// 类解析结果；保留镜像名，使命中与未命中两条路径返回一致的程序集名。
         LookupCache<std::string, ClassCacheEntry> class_cache{kClassCacheLimit};
         std::unordered_map<std::string, void*> export_overrides;
         /// 导出表是否已打印过解析日志。轮询重试会反复解析，日志只保留第一次。
@@ -69,9 +74,13 @@ namespace INB::detail {
         ~RuntimeContext();
     };
 
+    /// 一次线程附加的租约；析构时只分离本次附加的线程。
     struct ThreadLease {
+        /// 附加期间的 runtime context，租约存活期间保证 context 不被释放。
         std::shared_ptr<RuntimeContext> context;
+        /// 借自 IL2CPP 的线程指针，本结构不拥有它。
         Il2CppThread* thread{};
+        /// 线程是否由本次调用附加；只有 true 时析构才调用分离。
         bool owns_attachment{};
 
         ThreadLease() = default;

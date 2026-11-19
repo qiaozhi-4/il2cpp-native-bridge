@@ -11,10 +11,12 @@
 namespace INB::detail {
 
     /// IL2CPP 方法标志位中的 static 位。
+    /// 只对 il2cpp_method_get_flags 的返回值有效：它的出参是 MethodImplAttributes，0x10 在那里表示 ForwardRef。
     inline constexpr std::uint32_t kMethodAttributeStatic = 0x0010;
     /// IL2CPP 字段标志位中的 static 位。
     inline constexpr std::uint32_t kFieldAttributeStatic = 0x0010;
 
+    /// 一次托管调用返回的原始对象指针：值类型为装箱结果，void 方法与 null 返回值都为空。
     struct InvokeOutcome {
         Il2CppObject* value{};
     };
@@ -79,6 +81,7 @@ namespace INB::detail {
     /// 调用已解析方法，返回原始托管结果。
     Result<InvokeOutcome> invoke_raw(const MethodHandle& method, Il2CppObject* instance, std::span<void*> arguments);
 
+    /// 缓存键的前缀：类别 + 代际 + 拥有者地址，后续用 append_metadata_cache_part 追加名字。
     inline std::string metadata_cache_key(std::string_view kind,
                                           std::uint64_t generation,
                                           const void* owner) {
@@ -86,6 +89,7 @@ namespace INB::detail {
                std::to_string(reinterpret_cast<std::uintptr_t>(owner));
     }
 
+    /// 追加带长度前缀的一段；名字里含分隔符时不会和别的键拼成同一个键。
     inline void append_metadata_cache_part(std::string& key, std::string_view value) {
         key.push_back('|');
         key += std::to_string(value.size());

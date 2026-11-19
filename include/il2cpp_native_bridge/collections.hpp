@@ -75,7 +75,7 @@ namespace INB {
 
         /// 绑定是否成功；绑定失败时所有操作返回同一错误。
         [[nodiscard]] bool found() const noexcept { return binding_.has_value(); }
-        /// 绑定失败时的错误；绑定成功时读取行为由 Result 决定。
+        /// 绑定失败时的错误；只在 found() 为假时读取，成功时读取属于未定义行为。
         [[nodiscard]] const Error& error() const { return binding_.error(); }
         /// 视图指向的托管数组。
         [[nodiscard]] Il2CppObject* native() const noexcept { return array_; }
@@ -198,7 +198,7 @@ namespace INB {
 
         /// 绑定是否成功；绑定失败时所有操作返回同一错误。
         [[nodiscard]] bool found() const noexcept { return binding_.has_value(); }
-        /// 绑定失败时的错误。
+        /// 绑定失败时的错误；只在 found() 为假时读取，成功时读取属于未定义行为。
         [[nodiscard]] const Error& error() const { return binding_.error(); }
         /// 视图指向的托管列表。
         [[nodiscard]] Il2CppObject* native() const noexcept { return list_; }
@@ -332,7 +332,7 @@ namespace INB {
 
         /// 绑定是否成功；绑定失败时所有操作返回同一错误。
         [[nodiscard]] bool found() const noexcept { return binding_.has_value(); }
-        /// 绑定失败时的错误。
+        /// 绑定失败时的错误；只在 found() 为假时读取，成功时读取属于未定义行为。
         [[nodiscard]] const Error& error() const { return binding_.error(); }
         /// 视图指向的托管字典。
         [[nodiscard]] Il2CppObject* native() const noexcept { return dictionary_; }

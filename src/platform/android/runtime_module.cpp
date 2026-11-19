@@ -17,6 +17,7 @@ namespace INB::detail {
     #if defined(__ANDROID__) || (defined(__linux__) && !defined(__ANDROID__))
     namespace {
 
+        /// 已加载的 runtime 模块：路径来自 dlpi_name，基址来自 dlpi_addr。
         struct RuntimeModule {
             std::string path;
             std::uintptr_t load_address{};
@@ -26,6 +27,7 @@ namespace INB::detail {
             std::vector<RuntimeModule>* modules{};
         };
 
+        /// dl_iterate_phdr 回调：挑出 runtime 模块，其余 so 直接跳过。
         int find_runtime_module(struct dl_phdr_info* info, std::size_t, void* user_data) {
             if (info == nullptr || info->dlpi_name == nullptr || info->dlpi_name[0] == '\0') return 0;
 
@@ -43,6 +45,7 @@ namespace INB::detail {
             return 0;
         }
 
+        /// 用 il2cpp_domain_get 的实际映射基址核对句柄：dlopen 可能命中同名但不是同一份映射的 so。
         bool handle_matches_loaded_runtime(void* handle, const std::vector<RuntimeModule>& modules) {
             if (handle == nullptr) return false;
             void* domain_get = dlsym(handle, "il2cpp_domain_get");

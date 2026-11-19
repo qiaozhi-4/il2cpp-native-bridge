@@ -25,6 +25,7 @@ namespace INB::detail {
     template <typename Key, typename Value, typename Map = std::unordered_map<Key, Value>>
     class LookupCache {
     public:
+        /// 以固定容量构造；条目数达到容量后，下一次写入先整体清空。
         explicit LookupCache(std::size_t capacity) : capacity_(capacity) {}
 
         LookupCache(const LookupCache&) = delete;
@@ -61,11 +62,13 @@ namespace INB::detail {
             return true;
         }
 
+        /// 清空全部条目；调用方通常改用 advance() 让代际失效一并推进。
         void clear() {
             std::lock_guard lock(mutex_);
             entries_.clear();
         }
 
+        /// 当前条目数；供测试与容量诊断使用。
         [[nodiscard]] std::size_t size() const {
             std::lock_guard lock(mutex_);
             return entries_.size();

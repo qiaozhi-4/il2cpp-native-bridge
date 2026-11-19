@@ -87,12 +87,10 @@ namespace INB::detail {
         }
 
         /**
-         * 已有运行时验收证据的 Unity 版本（major.minor）。
+         * 已在真机上跑通替换的 Unity 版本（major.minor）。
          *
-         * 只有列在这里的版本才是 approved：G1 参数槽、G2 原生形态与 G3 Gum 屏障在
-         * 该版本的设备运行中全部通过（见 build/bridge-perform-unity/gate-report.json）。
-         * 2021.3 / 2022.3 是目标应用（明日方舟 2021.3.39f1、无冬夜战 2022.3.62f2）的实测版本，
-         * 证据见 build/t031-unity/evidence.md。
+         * 只有列在这里的版本才是 approved：参数槽、原生入口形态与 Gum 屏障都在该版本的设备
+         * 运行中验过。2021.3 / 2022.3 取自目标应用（明日方舟 2021.3.39f1、无冬夜战 2022.3.62f2）。
          * 同一 family 的其他版本仍是 candidate —— 形态相同不等于已在该版本上验过。
          */
         constexpr struct {
@@ -112,7 +110,7 @@ namespace INB::detail {
             AbiProfile profile;
             profile.family = std::string{family};
             if (family == "modern-static") {
-                /// 依据：T031 从 Unity 6000.3.10f1 生成的 RuntimeInvoker 与 MethodInfo 布局。
+                /// 依据：Unity 6000.3.10f1 生成的 RuntimeInvoker 与 MethodInfo 布局，入口指针在 MethodInfo 首字段。
                 profile.entry_offset = 0;
                 profile.dummy_instance_static = false;
                 profile.hidden_method_info = true;
