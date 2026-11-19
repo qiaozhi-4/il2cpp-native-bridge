@@ -88,7 +88,6 @@ void perform_revert(ManagedRecord* record) {
     }
 
     /// 记录在此之后就被释放，日志必须先取到它自有的 path。
-    INB_LOGD("replacement reverted: %s", record->path.c_str());
     {
         auto& managed = registry();
         std::lock_guard lock(managed.mutex);

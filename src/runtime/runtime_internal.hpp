@@ -62,8 +62,6 @@ struct RuntimeContext {
     bool exports_logged{};
     /// 已打印过的状态迁移日志点，取值见 runtime_context.cpp 的 LogPoint。
     unsigned logged_points{};
-    /// 已打印过解析日志的查询键；与元数据缓存共用锁与上限策略，避免逐帧查询刷屏。
-    std::unordered_set<std::string> logged_lookups;
     /// 门面协调执行器；由 context 独占持有，worker 只借用 context。
     std::unique_ptr<FacadeExecutor> facade_executor;
 
@@ -124,15 +122,5 @@ void cache_class(const std::shared_ptr<RuntimeContext>& context,
                  std::string key,
                  Il2CppClass* native,
                  std::string assembly_name);
-/**
- * 首次见到该查询键时返回 true，供「每个查询只打印一次解析日志」使用。
- *
- * 键沿用元数据缓存的键格式，因此同一类/方法/字段在缓存被清空后也不会重复打印。
- *
- * @param context 运行时 context；为空时返回 false。
- * @param key 查询键。
- * @return 该键此前未出现过时为 true。
- */
-bool mark_lookup_logged(const std::shared_ptr<RuntimeContext>& context, std::string_view key);
 
 } /// namespace INB::detail

@@ -104,7 +104,6 @@ Result<void> remove_hook(const std::shared_ptr<HookState>& state) {
     /// 先置空跳板再标记已移除，保证读到 removed 时 original 必为 nullptr。
     state->original.store(nullptr, std::memory_order_release);
     state->removed.store(true, std::memory_order_release);
-    INB_LOGD("hook removed: %p", state->target);
     {
         auto& hooks = registry();
         std::lock_guard registry_lock(hooks.mutex);

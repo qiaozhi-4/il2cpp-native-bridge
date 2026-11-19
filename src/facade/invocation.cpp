@@ -3,8 +3,6 @@
 #include "facade/facade_internal.hpp"
 #include "metadata/metadata_internal.hpp"
 
-#include "logging/internal_log.hpp"
-
 #include <cstddef>
 #include <cstring>
 #include <string>
@@ -36,10 +34,6 @@ void require_not_generic(const Api& api, const Il2CppMethodInfo* method, std::st
     }
     const bool generic = api.method_is_generic(method);
     const bool inflated = api.method_is_inflated(method);
-    if constexpr (INB_LOG_ENABLED) {
-        INB_LOGD("bind %.*s: generic=%d inflated=%d", static_cast<int>(path.size()), path.data(),
-                 generic ? 1 : 0, inflated ? 1 : 0);
-    }
     /// 开放泛型定义缺少具体类型，无法直接 runtime_invoke；
     /// 已具体化的 inflated 方法（如 Singleton<T> 针对具体类的 getter）携带完整 MethodInfo，可直接调用。
     if (generic && !inflated) {
@@ -146,9 +140,6 @@ BoundSignature bind_method(const std::shared_ptr<RuntimeContext>& context,
     binding.descriptor = descriptor;
     binding.path = std::move(path);
     binding.reference_slots = std::move(reference_slots);
-    if constexpr (INB_LOG_ENABLED) {
-        if (mark_lookup_logged(context, binding.path)) INB_LOGD("bind %s", binding.path.c_str());
-    }
     return binding;
 }
 

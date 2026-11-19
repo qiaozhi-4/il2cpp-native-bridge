@@ -124,7 +124,6 @@ void Runtime::set_symbol_lookup(void* module,
         /// 换了模块或解析器等于重新发现一次，日志点随之下一次解析重新打印。
         context->exports_logged = false;
         context->logged_points = 0;
-        context->logged_lookups.clear();
     }
     if (previous_owned_module != nullptr) detail::close_runtime_module(previous_owned_module);
     INB_LOGI("symbol resolver configured (module %p)", module);
@@ -143,7 +142,6 @@ Result<void> Runtime::set_export_override(std::string_view symbol_name, void* ad
             "IL2CPP export overrides must be registered before the runtime becomes ready"));
     }
     context->export_overrides.insert_or_assign(std::string(symbol_name), address);
-    INB_LOGD("export override %.*s -> %p", static_cast<int>(symbol_name.size()), symbol_name.data(), address);
     return Result<void>::success();
 }
 

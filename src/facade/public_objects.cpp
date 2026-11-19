@@ -79,9 +79,11 @@ MethodDescriptor descriptor_for(const ReadyView& view,
         }
         descriptor.parameter_types.push_back(TypeDescriptor{detail::opaque(type), name.take_value()});
     }
-    std::uint32_t flags = 0;
-    view.api.method_get_flags(method, &flags);
-    descriptor.is_static = (flags & kMethodAttributeStatic) != 0;
+    /// 返回值是方法标志（MethodAttributes），出参是实现标志（MethodImplAttributes）：
+    /// 后者的 0x10 是 ForwardRef，不是 Static，判静态只能用返回值。
+    std::uint32_t implementation_flags = 0;
+    const std::uint32_t method_flags = view.api.method_get_flags(method, &implementation_flags);
+    descriptor.is_static = (method_flags & kMethodAttributeStatic) != 0;
     return descriptor;
 }
 

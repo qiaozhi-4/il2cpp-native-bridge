@@ -3,8 +3,6 @@
 #include "facade/facade_internal.hpp"
 #include "metadata/metadata_internal.hpp"
 
-#include "logging/internal_log.hpp"
-
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -26,15 +24,6 @@ std::string join_path(std::initializer_list<std::string_view> parts) {
         path += part;
     }
     return path;
-}
-
-/// 签名描述只服务于轨迹日志；日志关闭时该函数不参与编译。
-[[maybe_unused]] std::string describe_type(const detail::Api& api, const Il2CppType* type, std::string_view path) {
-    auto name = detail::managed_name(api, type);
-    if (!name) {
-        detail::report_and_throw(name.error().code, ErrorStage::lookup, std::string(path), name.error().message);
-    }
-    return std::move(name).take_value();
 }
 
 } /// namespace
@@ -109,11 +98,6 @@ Class Image::klass(std::string_view full_name) const {
         detail::report_and_throw(ErrorCode::not_found, ErrorStage::lookup, path,
              "the selected image does not contain the requested class");
     }
-    if constexpr (INB_LOG_ENABLED) {
-        if (detail::mark_lookup_logged(context_, path)) {
-            INB_LOGD("class %s -> %p", path.c_str(), static_cast<void*>(klass));
-        }
-    }
     return Class(context_, generation_, detail::opaque(klass), std::string(full_name), name_, assembly_name_);
 }
 
@@ -174,40 +158,8 @@ Method Class::select(std::string_view name, const std::optional<std::size_t>& pa
     }
 
     if (candidates.empty()) {
-        if constexpr (INB_LOG_ENABLED) {
-            void* iterator = nullptr;
-            while (const Il2CppMethodInfo* method = view.api.class_get_methods(static_cast<Il2CppClass*>(native_), &iterator)) {
-                const char* method_name = view.api.method_get_name(method);
-                if (method_name == nullptr || name != method_name) continue;
-                std::string signature = describe_type(view.api, view.api.method_get_return_type(method), path) + " " + method_name + "(";
-                const auto count = view.api.method_get_param_count(method);
-                for (std::uint32_t index = 0; index < count; ++index) {
-                    if (index != 0) signature += ", ";
-                    signature += describe_type(view.api, view.api.method_get_param(method, index), path);
-                }
-                signature += ')';
-                INB_LOGD("method %s available: %s", path.c_str(), signature.c_str());
-            }
-        }
         detail::report_and_throw(ErrorCode::not_found, ErrorStage::lookup, path,
              "no method matches the requested name and parameter count");
-    }
-    if constexpr (INB_LOG_ENABLED) {
-        std::string key = path;
-        key += '#';
-        key += parameter_count.has_value() ? std::to_string(*parameter_count) : std::string("any");
-        if (detail::mark_lookup_logged(context_, key)) {
-            INB_LOGD("method %s -> %zu candidate(s)", path.c_str(), candidates.size());
-            for (const auto& candidate : candidates) {
-                std::string signature = candidate.return_type.name + " " + candidate.name + "(";
-                for (std::size_t index = 0; index < candidate.parameter_types.size(); ++index) {
-                    if (index != 0) signature += ", ";
-                    signature += candidate.parameter_types[index].name;
-                }
-                signature += ')';
-                INB_LOGD("method %s candidate: %s", path.c_str(), signature.c_str());
-            }
-        }
     }
     return Method(context_, generation_, native_, full_name_, std::string(name),
                   std::move(candidates), nullptr, image_name_, assembly_name_);

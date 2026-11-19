@@ -55,31 +55,6 @@ const char* stage_name(ErrorStage stage) {
     return "none";
 }
 
-/// perform 生命周期日志。日志关闭时参数不被求值，也不产生计时开销。
-[[maybe_unused]] void log_perform_event(const char* event, std::uint64_t request_id) {
-    if constexpr (INB_LOG_ENABLED) {
-        INB_LOGD("perform#%llu %s", static_cast<unsigned long long>(request_id), event);
-    } else {
-        (void) event;
-        (void) request_id;
-    }
-}
-
-/// 带「距提交耗时」的 perform 生命周期日志，用于观察等待就绪与动作本身的耗时。
-[[maybe_unused]] void log_perform_elapsed(const char* event,
-                                          std::uint64_t request_id,
-                                          std::chrono::steady_clock::time_point since) {
-    if constexpr (INB_LOG_ENABLED) {
-        INB_LOGD("perform#%llu %s after %lld ms", static_cast<unsigned long long>(request_id), event,
-                 static_cast<long long>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                         std::chrono::steady_clock::now() - since).count()));
-    } else {
-        (void) event;
-        (void) request_id;
-        (void) since;
-    }
-}
-
 } /// namespace
 
 void set_diagnostic_sink(DiagnosticSink sink) {
@@ -257,10 +232,8 @@ Result<void> FacadeExecutor::submit(std::function<Result<void>()> action,
     }
 
     request->request_id = next_request_id_++;
-    const auto request_id = request->request_id;
     queue_.push_back(std::move(request));
     wake_.notify_one();
-    log_perform_event("queued", request_id);
     return Result<void>::success();
 }
 
@@ -308,7 +281,6 @@ void FacadeExecutor::pop_front(const std::shared_ptr<PerformRequest>& request) {
 }
 
 void FacadeExecutor::run_action(PerformRequest& request, const ReadyView& view) {
-    log_perform_elapsed("start", request.request_id, request.submitted_at);
     Result<void> outcome = Result<void>::success();
     try {
         AccessScope scope(view.context);
@@ -332,10 +304,9 @@ void FacadeExecutor::run_action(PerformRequest& request, const ReadyView& view) 
 
 void FacadeExecutor::finish(PerformRequest& request, const Result<void>& outcome) {
     /// 结果确定后立即释放 action/options 捕获；completion 本身不在作用域内执行。
+    /// 失败已在首次发现处或创建处打印，这里不再重复报告。
     request.action = nullptr;
     request.on_wait = nullptr;
-    /// 失败已在首次发现处或创建处打印，这里不再重复报告。
-    if (outcome) log_perform_elapsed("done", request.request_id, request.submitted_at);
 
     if (request.completion) {
         auto completion = std::move(request.completion);

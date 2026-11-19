@@ -1,8 +1,6 @@
 #include "metadata_internal.hpp"
 #include "hooks/hook_internal.hpp"
 
-#include "logging/internal_log.hpp"
-
 #include <algorithm>
 #include <cstring>
 
@@ -109,28 +107,16 @@ Result<MethodHandle> resolve_method(const ClassHandle& klass,
     }
 
     if (exact_matches == 0) {
-        if (mark_lookup_logged(klass.context, cache_key)) {
-            INB_LOGD("method %s::%.*s: %s", klass.full_name.c_str(), static_cast<int>(name.size()), name.data(),
-                     named_matches == 0 ? "not found" : "signature mismatch");
-        }
         const auto code = named_matches == 0 ? ErrorCode::not_found : ErrorCode::type_mismatch;
         return Result<MethodHandle>::failure(make_error(code,
             named_matches == 0 ? "managed method was not found: " + std::string(name)
                                : "managed method signature did not match: " + std::string(name)));
     }
     if (exact_matches > 1) {
-        if (mark_lookup_logged(klass.context, cache_key)) {
-            INB_LOGD("method %s::%.*s: ambiguous, %zu matching overloads", klass.full_name.c_str(),
-                     static_cast<int>(name.size()), name.data(), exact_matches);
-        }
         return Result<MethodHandle>::failure(make_error(ErrorCode::ambiguous_match,
             "managed method signature matched multiple methods: " + std::string(name)));
     }
 
-    if (mark_lookup_logged(klass.context, cache_key)) {
-        INB_LOGD("method %s::%.*s -> %p", klass.full_name.c_str(), static_cast<int>(name.size()), name.data(),
-                 static_cast<const void*>(match));
-    }
     std::uint32_t implementation_flags = 0;
     const auto flags = api.method_get_flags(match, &implementation_flags);
     MethodHandle result;
@@ -195,20 +181,12 @@ Result<MethodHandle> resolve_method_by_arity(const ClassHandle& klass,
     }
 
     if (arity_matches == 0) {
-        if (mark_lookup_logged(klass.context, cache_key)) {
-            INB_LOGD("method %s::%.*s/%zu: %s", klass.full_name.c_str(), static_cast<int>(name.size()), name.data(),
-                     parameter_count, named_matches == 0 ? "not found" : "parameter count mismatch");
-        }
         const auto code = named_matches == 0 ? ErrorCode::not_found : ErrorCode::type_mismatch;
         return Result<MethodHandle>::failure(make_error(code,
             named_matches == 0 ? "managed method was not found: " + std::string(name)
                                : "managed method parameter count did not match: " + std::string(name)));
     }
     if (arity_matches > 1) {
-        if (mark_lookup_logged(klass.context, cache_key)) {
-            INB_LOGD("method %s::%.*s/%zu: ambiguous, %zu matching overloads", klass.full_name.c_str(),
-                     static_cast<int>(name.size()), name.data(), parameter_count, arity_matches);
-        }
         return Result<MethodHandle>::failure(make_error(ErrorCode::ambiguous_match,
             "managed method name and parameter count matched multiple methods: " + std::string(name)));
     }
@@ -232,10 +210,6 @@ Result<MethodHandle> resolve_method_by_arity(const ClassHandle& klass,
     result.return_type = return_type.take_value();
     result.parameter_types = std::move(parameter_types);
     result.is_static = (flags & kMethodAttributeStatic) != 0;
-    if (mark_lookup_logged(klass.context, cache_key)) {
-        INB_LOGD("method %s::%.*s/%zu -> %p", klass.full_name.c_str(), static_cast<int>(name.size()), name.data(),
-                 parameter_count, static_cast<const void*>(match));
-    }
     cache_metadata(klass.context, std::move(cache_key), const_cast<Il2CppMethodInfo*>(match));
     return Result<MethodHandle>::success(std::move(result));
 }

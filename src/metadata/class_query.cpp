@@ -1,7 +1,5 @@
 #include "metadata_internal.hpp"
 
-#include "logging/internal_log.hpp"
-
 #include <algorithm>
 #include <optional>
 #include <string_view>
@@ -74,25 +72,14 @@ Result<ClassHandle> resolve_class(const std::shared_ptr<RuntimeContext>& context
     }
 
     if (matches == 0) {
-        if (mark_lookup_logged(context, cache_key)) {
-            INB_LOGD("class %.*s: not found", static_cast<int>(full_name.size()), full_name.data());
-        }
         return Result<ClassHandle>::failure(make_error(ErrorCode::not_found,
             "managed class was not found: " + std::string(full_name)));
     }
     if (matches > 1) {
-        if (mark_lookup_logged(context, cache_key)) {
-            INB_LOGD("class %.*s: ambiguous, %zu matching assemblies",
-                     static_cast<int>(full_name.size()), full_name.data(), matches);
-        }
         return Result<ClassHandle>::failure(make_error(ErrorCode::ambiguous_match,
             "managed class matched multiple assemblies: " + std::string(full_name)));
     }
 
-    if (mark_lookup_logged(context, cache_key)) {
-        INB_LOGD("class %.*s -> %p (%s)", static_cast<int>(full_name.size()), full_name.data(),
-                 static_cast<void*>(matched), matched_assembly.c_str());
-    }
     cache_class(context, std::move(cache_key), matched, matched_assembly);
 
     ClassHandle found;

@@ -391,11 +391,4 @@ void cache_class(const std::shared_ptr<RuntimeContext>& context,
     context->class_cache.insert_or_assign(std::move(key), ClassCacheEntry{native, std::move(assembly_name)});
 }
 
-bool mark_lookup_logged(const std::shared_ptr<RuntimeContext>& context, std::string_view key) {
-    if (context == nullptr) return false;
-    std::lock_guard lock(context->metadata_cache_mutex);
-    if (context->logged_lookups.size() >= kMetadataCacheLimit) context->logged_lookups.clear();
-    return context->logged_lookups.emplace(key).second;
-}
-
 } /// namespace INB::detail
